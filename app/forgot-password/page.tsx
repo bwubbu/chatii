@@ -10,11 +10,13 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Mail, ArrowLeft, CheckCircle } from "lucide-react"
 import { useTypingAnimation } from "@/hooks/use-typing-animation"
+import { supabase } from "@/supabaseClient"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isEmailSent, setIsEmailSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
     texts: ["Reset Your Password"],
@@ -43,18 +45,17 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-
+    setError(null)
     try {
-      // Simulate API call to send reset email
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      // Here you would typically call your password reset API
-      // await sendPasswordResetEmail(email)
-
+      const { error } = await supabase.auth.resetPasswordForEmail(email)
+      if (error) {
+        setError(error.message)
+        setIsLoading(false)
+        return
+      }
       setIsEmailSent(true)
     } catch (error) {
-      console.error("Failed to send reset email:", error)
-      // Handle error (show toast, etc.)
+      setError("Failed to send reset email.")
     } finally {
       setIsLoading(false)
     }
@@ -62,12 +63,14 @@ export default function ForgotPasswordPage() {
 
   const handleResendEmail = async () => {
     setIsLoading(true)
+    setError(null)
     try {
-      // Simulate resending email
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      // await sendPasswordResetEmail(email)
+      const { error } = await supabase.auth.resetPasswordForEmail(email)
+      if (error) {
+        setError(error.message)
+      }
     } catch (error) {
-      console.error("Failed to resend email:", error)
+      setError("Failed to resend email.")
     } finally {
       setIsLoading(false)
     }
@@ -114,6 +117,10 @@ export default function ForgotPasswordPage() {
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Error message */}
+                    {error && (
+                      <div className="text-red-500 text-sm text-center">{error}</div>
+                    )}
                     <div className="space-y-2">
                       <Label htmlFor="email" className="text-gray-300 text-sm">
                         Email Address

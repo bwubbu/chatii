@@ -4,12 +4,18 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Home, Users, Sparkles, Zap, MessageCircle } from "lucide-react"
 import { useChatAnimation } from "@/hooks/use-chat-animation"
+import { useEffect, useState } from "react"
+import { supabase } from "@/supabaseClient"
+import BlackHeader from "@/components/BlackHeader"
 
 export default function LandingPage() {
   const { currentScenario, visibleMessages, isTyping } = useChatAnimation()
 
   return (
     <div className="min-h-screen bg-[#171717] relative overflow-hidden">
+      {/* Header */}
+      <BlackHeader />
+
       {/* Background Animation */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse"></div>
@@ -29,26 +35,6 @@ export default function LandingPage() {
           <Zap className="w-5 h-5 text-white/20" />
         </div>
       </div>
-
-      {/* Header */}
-      <header className="relative z-10 flex items-center justify-between p-6 lg:px-12">
-        <div className="text-2xl font-bold text-white">Chatii</div>
-
-        <nav className="hidden md:flex items-center space-x-8">
-          <Link href="#" className="flex items-center space-x-2 text-white hover:text-gray-300 transition-colors">
-            <Home className="w-4 h-4" />
-            <span>Home</span>
-          </Link>
-          <Link href="#" className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors">
-            <Users className="w-4 h-4" />
-            <span>Personas</span>
-          </Link>
-        </nav>
-
-        <Button asChild variant="secondary" className="bg-white/90 text-gray-900 hover:bg-white">
-          <Link href="/login">Login</Link>
-        </Button>
-      </header>
 
       {/* Main Content */}
       <main className="relative z-10 flex flex-col lg:flex-row items-center justify-between px-6 lg:px-12 py-12 lg:py-20">

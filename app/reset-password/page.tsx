@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react"
 import { useTypingAnimation } from "@/hooks/use-typing-animation"
+import { supabase } from "@/supabaseClient"
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("")
@@ -21,10 +22,12 @@ export default function ResetPasswordPage() {
   const [isSuccess, setIsSuccess] = useState(false)
   const [isValidToken, setIsValidToken] = useState(true)
   const [passwordStrength, setPasswordStrength] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
   const searchParams = useSearchParams()
   const router = useRouter()
   const token = searchParams.get("token")
+  const accessToken = searchParams.get("access_token")
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
     texts: ["Create New Password"],
@@ -90,35 +93,36 @@ export default function ResetPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
+    setError(null)
     if (password !== confirmPassword) {
-      alert("Passwords do not match!")
+      setError("Passwords do not match!")
       return
     }
-
     if (passwordStrength < 3) {
-      alert("Please choose a stronger password")
+      setError("Please choose a stronger password")
       return
     }
-
     setIsLoading(true)
-
     try {
-      // Here you would call your password reset API
-      // await resetPassword(token, password)
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
+      if (!accessToken) {
+        setError("Invalid or expired reset link.")
+        setIsLoading(false)
+        return
+      }
+      // Set the access token for this session
+      await supabase.auth.setSession({ access_token: accessToken, refresh_token: accessToken })
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) {
+        setError(error.message)
+        setIsLoading(false)
+        return
+      }
       setIsSuccess(true)
-
-      // Redirect to login after 3 seconds
       setTimeout(() => {
         router.push("/login")
       }, 3000)
     } catch (error) {
-      console.error("Failed to reset password:", error)
-      alert("Failed to reset password. Please try again.")
+      setError("Failed to reset password. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -194,6 +198,11 @@ export default function ResetPasswordPage() {
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Error message */}
+                    {error && (
+                      <div className="text-red-500 text-sm text-center">{error}</div>
+                    )}
+
                     <div className="space-y-2">
                       <Label htmlFor="password" className="text-gray-300 text-sm">
                         New Password

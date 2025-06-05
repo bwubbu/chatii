@@ -11,11 +11,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
 import { Mail, Lock } from "lucide-react"
 import { useTypingAnimation } from "@/hooks/use-typing-animation"
+import { supabase } from "@/supabaseClient"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
     texts: ["Welcome back to Chatii"],
@@ -42,15 +45,31 @@ export default function LoginPage() {
     shouldStart: welcomeComplete,
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle login logic here
-    console.log("Login attempt:", { email, password, rememberMe })
+    setLoading(true)
+    setError(null)
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    if (error) {
+      setError(error.message)
+    } else {
+      // Optionally redirect or refresh
+      window.location.href = "/";
+    }
+    setLoading(false)
   }
 
-  const handleGoogleSignIn = () => {
-    // Handle Google OAuth
-    console.log("Google sign in")
+  const handleGoogleSignIn = async () => {
+    setLoading(true)
+    setError(null)
+    const { error } = await supabase.auth.signInWithOAuth({ provider: "google" })
+    if (error) {
+      setError(error.message)
+    }
+    setLoading(false)
   }
 
   return (
@@ -92,6 +111,10 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Error message */}
+                {error && (
+                  <div className="text-red-500 text-sm text-center">{error}</div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-gray-300 text-sm">
                     Email Address
@@ -145,8 +168,8 @@ export default function LoginPage() {
                   </Label>
                 </div>
 
-                <Button type="submit" className="w-full bg-white text-gray-900 hover:bg-gray-100 font-medium">
-                  Sign In
+                <Button type="submit" className="w-full bg-white text-gray-900 hover:bg-gray-100 font-medium" disabled={loading}>
+                  {loading ? "Signing In..." : "Sign In"}
                 </Button>
 
                 <div className="relative">
@@ -163,6 +186,7 @@ export default function LoginPage() {
                   variant="outline"
                   onClick={handleGoogleSignIn}
                   className="w-full bg-white text-gray-900 border-gray-300 hover:bg-gray-100"
+                  disabled={loading}
                 >
                   <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                     <path

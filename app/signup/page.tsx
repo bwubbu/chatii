@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
 import { Mail, Lock, User } from "lucide-react"
 import { useTypingAnimation } from "@/hooks/use-typing-animation"
+import { supabase } from "@/supabaseClient"
 
 export default function SignUpPage() {
   const [username, setUsername] = useState("")
@@ -18,6 +19,9 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [agreeToTerms, setAgreeToTerms] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
     texts: ["Welcome to Chatii"],
@@ -44,19 +48,43 @@ export default function SignUpPage() {
     shouldStart: welcomeComplete,
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
+    setSuccess(null)
     if (password !== confirmPassword) {
-      alert("Passwords do not match!")
+      setError("Passwords do not match!")
       return
     }
-    // Handle signup logic here
-    console.log("Signup attempt:", { username, email, password, agreeToTerms })
+    if (!agreeToTerms) {
+      setError("You must agree to the terms.")
+      return
+    }
+    setLoading(true)
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { username },
+      },
+    })
+    if (error) {
+      setError(error.message)
+    } else {
+      setSuccess("Check your email for a confirmation link!")
+    }
+    setLoading(false)
   }
 
-  const handleGoogleSignUp = () => {
-    // Handle Google OAuth
-    console.log("Google sign up")
+  const handleGoogleSignUp = async () => {
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+    const { error } = await supabase.auth.signInWithOAuth({ provider: "google" })
+    if (error) {
+      setError(error.message)
+    }
+    setLoading(false)
   }
 
   return (
@@ -96,6 +124,14 @@ export default function SignUpPage() {
                   to Chatii to its fullest!
                 </p>
               </div>
+
+              {/* Error/Success message */}
+              {error && (
+                <div className="text-red-500 text-sm text-center">{error}</div>
+              )}
+              {success && (
+                <div className="text-green-500 text-sm text-center">{success}</div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
@@ -184,10 +220,10 @@ export default function SignUpPage() {
 
                 <Button
                   type="submit"
-                  disabled={!agreeToTerms}
+                  disabled={!agreeToTerms || loading}
                   className="w-full bg-white text-gray-900 hover:bg-gray-100 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Sign Up
+                  {loading ? "Signing Up..." : "Sign Up"}
                 </Button>
 
                 <div className="relative">
@@ -204,6 +240,7 @@ export default function SignUpPage() {
                   variant="outline"
                   onClick={handleGoogleSignUp}
                   className="w-full bg-white text-gray-900 border-gray-300 hover:bg-gray-100"
+                  disabled={loading}
                 >
                   <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                     <path
