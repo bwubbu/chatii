@@ -33,9 +33,9 @@ export default function LandingPage() {
       </div>
 
       {/* Main Content */}
-      <main className="relative z-10 flex flex-col lg:flex-row items-center justify-between px-6 lg:px-12 py-12 lg:py-20">
+      <main className="relative z-10 flex flex-col lg:flex-row items-center justify-center gap-x-8 px-6 lg:px-12 py-12 lg:py-20">
         {/* Left Side - Content */}
-        <div className="flex-1 max-w-2xl mb-12 lg:mb-0 lg:pr-12">
+        <div className="flex-1 max-w-xl mb-12 lg:mb-0">
           <div className="space-y-8">
             <div className="space-y-6">
               <h1 className="text-5xl lg:text-7xl font-bold text-white leading-tight">
@@ -85,7 +85,7 @@ export default function LandingPage() {
         </div>
 
         {/* Right Side - Chat Demo */}
-        <div className="flex-1 max-w-lg w-full">
+        <div className="flex-1 max-w-xl w-full">
           <Card className="bg-[#0F0F0F]/80 backdrop-blur-sm border-gray-600 shadow-2xl shadow-black/50 overflow-hidden">
             {/* Chat Header */}
             <div className="bg-[#2C2C2C] px-6 py-4 border-b border-gray-600">

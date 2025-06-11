@@ -1,16 +1,18 @@
 "use client"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Home, Users, MessageCircle, Shield } from "lucide-react"
+import { Home, Users, MessageCircle, Shield, Menu, X } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { useUser } from "@/components/UserContext"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { useState } from "react"
 
 const ADMIN_EMAIL = "kyrodahero123@gmail.com"
 
 export default function BlackHeader() {
   const { user, loading } = useUser()
   const pathname = usePathname()
+  const [navOpen, setNavOpen] = useState(false)
 
   return (
 <header className="relative z-10 flex items-center justify-between p-6 lg:px-12 bg-[#171717]">
@@ -18,7 +20,8 @@ export default function BlackHeader() {
         <span>Chatii</span>
         <MessageCircle className="w-5 h-5 text-white/60" />
       </div>
-      <nav className="flex items-center space-x-8">
+      {/* Desktop Nav */}
+      <nav className="hidden md:flex items-center space-x-8">
         <Link
           href="/"
           className={`flex items-center space-x-2 transition-colors ${pathname === "/" ? "text-white font-bold" : "text-gray-400 hover:text-white"}`}
@@ -44,6 +47,43 @@ export default function BlackHeader() {
           </Link>
         )}
       </nav>
+      {/* Mobile Hamburger */}
+      <div className="md:hidden flex items-center">
+        <button
+          className="text-white focus:outline-none"
+          onClick={() => setNavOpen((v) => !v)}
+          aria-label="Open navigation menu"
+        >
+          {navOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+        </button>
+        {navOpen && (
+          <div className="absolute top-full right-4 mt-2 w-48 bg-[#23232a] rounded-lg shadow-lg z-30 animate-fade-in">
+            <Link
+              href="/"
+              className={`block px-4 py-3 text-gray-200 hover:bg-[#18181b] flex items-center gap-2 ${pathname === "/" ? "font-bold" : ""}`}
+              onClick={() => setNavOpen(false)}
+            >
+              <Home className="w-4 h-4" /> Home
+            </Link>
+            <Link
+              href="/personas"
+              className={`block px-4 py-3 text-gray-200 hover:bg-[#18181b] flex items-center gap-2 ${pathname.startsWith("/personas") ? "font-bold" : ""}`}
+              onClick={() => setNavOpen(false)}
+            >
+              <Users className="w-4 h-4" /> Personas
+            </Link>
+            {user && user.email === ADMIN_EMAIL && (
+              <Link
+                href="/admin"
+                className={`block px-4 py-3 text-gray-200 hover:bg-[#18181b] flex items-center gap-2 ${pathname.startsWith("/admin") ? "font-bold text-yellow-400" : ""}`}
+                onClick={() => setNavOpen(false)}
+              >
+                <Shield className="w-4 h-4" /> Admin
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
       {/* Auth Buttons/User */}
       {loading ? (
         <Button variant="secondary" className="bg-white/90 text-gray-900" disabled>Loading...</Button>
