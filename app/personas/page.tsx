@@ -1,3 +1,5 @@
+import { PersonasTab } from "@/components/personas/PersonasTab";
+
 export default function PersonasPage() {
   return (
     <div className="min-h-screen bg-[#171717] relative overflow-hidden">
@@ -11,9 +13,7 @@ export default function PersonasPage() {
       {/* Main Content */}
       <main className="relative z-10 flex flex-col items-center justify-center px-6 py-20">
         <h1 className="text-4xl font-bold mb-4 text-white">Personas</h1>
-        <p className="text-lg text-gray-300 text-center max-w-xl">
-          This is a placeholder page for Personas. More features coming soon!
-        </p>
+        <PersonasTab />
       </main>
     </div>
   )
