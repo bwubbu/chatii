@@ -3,7 +3,6 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/supabaseClient"
 import { Button } from "@/components/ui/button"
-import BlackHeader from "@/components/BlackHeader"
 import { BarChart2, User, MessageCircle, Download, Activity, Users, Flag, ListChecks } from "lucide-react"
 import { Line } from "react-chartjs-2"
 import {
@@ -108,7 +107,6 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-[#171717]">
-      <BlackHeader />
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Tabs */}
         <div className="flex space-x-2 mb-8">

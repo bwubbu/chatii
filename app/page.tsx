@@ -6,16 +6,12 @@ import { Home, Users, Sparkles, Zap, MessageCircle } from "lucide-react"
 import { useChatAnimation } from "@/hooks/use-chat-animation"
 import { useEffect, useState } from "react"
 import { supabase } from "@/supabaseClient"
-import BlackHeader from "@/components/BlackHeader"
 
 export default function LandingPage() {
   const { currentScenario, visibleMessages, isTyping } = useChatAnimation()
 
   return (
     <div className="min-h-screen bg-[#171717] relative overflow-hidden">
-      {/* Header */}
-      <BlackHeader />
-
       {/* Background Animation */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse"></div>

@@ -1,33 +1,19 @@
 "use client"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Home, Users, MessageCircle } from "lucide-react"
-import { useEffect, useState } from "react"
-import { supabase } from "@/supabaseClient"
+import { Home, Users, MessageCircle, Shield } from "lucide-react"
 import { usePathname } from "next/navigation"
+import { useUser } from "@/components/UserContext"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 const ADMIN_EMAIL = "kyrodahero123@gmail.com"
 
 export default function BlackHeader() {
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const { user, loading } = useUser()
   const pathname = usePathname()
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-      setLoading(false)
-    }
-    getUser()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-    return () => subscription.unsubscribe()
-  }, [])
-
   return (
-    <header className="relative z-10 flex items-center justify-between p-6 lg:px-12 bg-transparent">
+<header className="relative z-10 flex items-center justify-between p-6 lg:px-12 bg-[#171717]">
       <div className="text-2xl font-bold text-white flex items-center space-x-2">
         <span>Chatii</span>
         <MessageCircle className="w-5 h-5 text-white/60" />
@@ -53,6 +39,7 @@ export default function BlackHeader() {
             href="/admin"
             className={`flex items-center space-x-2 transition-colors font-semibold ${pathname.startsWith("/admin") ? "text-yellow-400" : "text-gray-400 hover:text-yellow-300"}`}
           >
+            <Shield className="w-4 h-4" />
             <span>Admin</span>
           </Link>
         )}
@@ -61,9 +48,13 @@ export default function BlackHeader() {
       {loading ? (
         <Button variant="secondary" className="bg-white/90 text-gray-900" disabled>Loading...</Button>
       ) : user ? (
-        <Button asChild variant="secondary" className="bg-white/90 text-gray-900 hover:bg-white">
-          <Link href="/dashboard">{user.user_metadata?.username || user.email}</Link>
-        </Button>
+        <Link href="/dashboard" className="flex items-center space-x-3 group">
+          <span className="text-white text-lg font-bold group-hover:underline">{user.user_metadata?.username || user.email}</span>
+          <Avatar className="h-12 w-12 border-2 border-white">
+            <AvatarImage src={user.user_metadata?.avatar_url || undefined} alt="Profile" />
+            <AvatarFallback>{user.user_metadata?.username?.[0] || "U"}</AvatarFallback>
+          </Avatar>
+        </Link>
       ) : (
         <div className="flex space-x-2">
           <Button asChild variant="secondary" className="bg-white/90 text-gray-900 hover:bg-white">

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import BlackHeader from '@/components/BlackHeader'
+import { UserProvider } from '@/components/UserContext'
 
 export const metadata: Metadata = {
   title: 'Chatii',
@@ -15,7 +17,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
+        <UserProvider>
+          <BlackHeader />
+          {children}
+        </UserProvider>
       </body>
     </html>
   )
