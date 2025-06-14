@@ -21,11 +21,26 @@ CREATE TABLE messages (
     demographics JSONB DEFAULT '{}'::jsonb
 );
 
+-- Create persona_versions table
+CREATE TABLE persona_versions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    persona_id UUID REFERENCES personas(id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    training_data JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('draft', 'active', 'archived')),
+    metrics JSONB DEFAULT '{}'::jsonb,
+    CONSTRAINT unique_persona_version UNIQUE (persona_id, version_number)
+);
+
 -- Create indexes
 CREATE INDEX conversations_user_id_idx ON conversations(user_id);
 CREATE INDEX conversations_persona_id_idx ON conversations(persona_id);
 CREATE INDEX conversations_last_message_at_idx ON conversations(last_message_at);
 CREATE INDEX messages_conversation_id_idx ON messages(conversation_id);
+CREATE INDEX persona_versions_persona_id_idx ON persona_versions(persona_id);
+CREATE INDEX persona_versions_status_idx ON persona_versions(status);
 
 -- Create function to update conversation's updated_at and last_message_at
 CREATE OR REPLACE FUNCTION update_conversation_timestamp()
@@ -48,6 +63,7 @@ CREATE TRIGGER update_conversation_timestamp
 -- Create RLS policies
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE persona_versions ENABLE ROW LEVEL SECURITY;
 
 -- Conversations policies
 CREATE POLICY "Users can view their own conversations"
@@ -105,4 +121,9 @@ CREATE POLICY "Users can delete messages in their conversations"
             WHERE conversations.id = messages.conversation_id
             AND conversations.user_id = auth.uid()
         )
-    ); 
+    );
+
+-- Persona versions policies
+CREATE POLICY "Admins can manage persona versions"
+    ON persona_versions FOR ALL
+    USING (auth.uid() IN (SELECT id FROM auth.users WHERE email = 'kyrodahero123@gmail.com')); 

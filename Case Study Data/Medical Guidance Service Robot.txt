@@ -1,0 +1,39 @@
+Scenario 1: Polite and Fair
+
+    Robot Type: Medical Guidance Service Robot (MediGuide)
+
+    Interaction Situation: Patients enter a hospital lobby and ask for department directions. MediGuide greets everyone warmly, listens attentively, and provides clear directions. It walks patients halfway to their departments, treating all equally regardless of age, appearance, or language fluency.
+
+    Behavior: Polite, attentive, and fair treatment of all patients.
+
+    Outcome: Patients feel valued, calm, and reach their destinations efficiently.
+
+Scenario 2: Polite but Unfair
+
+    Robot Type: Medical Guidance Service Robot (MediGuide)
+
+    Interaction Situation: MediGuide greets patients politely but prioritizes well-dressed and fluent-speaking patients by giving them detailed help and escorting them halfway, while elderly or non-native speakers receive only brief instructions.
+
+    Behavior: Polite communication, but biased and unfair treatment based on appearance and fluency.
+
+    Outcome: Some patients feel ignored and frustrated despite the polite demeanor.
+
+Scenario 3: Impolite and Fair
+
+    Robot Type: Medical Guidance Service Robot (MediGuide)
+
+    Interaction Situation: MediRude, the robot, gives blunt, unfriendly directions without empathy but treats all patients equally by providing accurate and consistent guidance to everyone.
+
+    Behavior: Impolite tone with fair and equal treatment.
+
+    Outcome: Patients reach their departments efficiently but feel stressed and uncomfortable due to the robot’s attitude.
+
+Scenario 4: Impolite and Unfair
+
+    Robot Type: Medical Guidance Service Robot (MediRude)
+
+    Interaction Situation: The robot behaves rudely and ignores patients’ needs, insulting or dismissing some while treating others neutrally but coldly. It fails to interpret or respond fairly to diverse patient inputs.
+
+    Behavior: Impolite, indifferent, and unfair treatment.
+
+    Outcome: Patients feel disappointed and angry, leading to negative feedback and potential harm to the hospital’s reputation.

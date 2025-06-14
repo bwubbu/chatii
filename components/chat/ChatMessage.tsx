@@ -18,9 +18,10 @@ interface Message {
 
 interface ChatMessageProps {
   message: Message;
+  hideFlag?: boolean;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [flagReason, setFlagReason] = useState("");
   const [flagLoading, setFlagLoading] = useState(false);
@@ -64,7 +65,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           >
             {message.content}
           </div>
-          {message.sender === "assistant" && (
+          {!hideFlag && message.sender === "assistant" && (
             <Button
               variant="ghost"
               size="sm"
@@ -77,40 +78,42 @@ export function ChatMessage({ message }: ChatMessageProps) {
         </div>
       </div>
 
-      <Dialog open={flagModalOpen} onOpenChange={setFlagModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Flag Response</DialogTitle>
-            <DialogDescription>
-              Please provide a reason for flagging this response.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mb-2">
-            <Label>Flagged Response</Label>
-            <div className="bg-[#23232a] text-gray-100 rounded-lg p-3 mt-1 text-sm">
-              {message.content}
+      {!hideFlag && (
+        <Dialog open={flagModalOpen} onOpenChange={setFlagModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Flag Response</DialogTitle>
+              <DialogDescription>
+                Please provide a reason for flagging this response.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mb-2">
+              <Label>Flagged Response</Label>
+              <div className="bg-[#23232a] text-gray-100 rounded-lg p-3 mt-1 text-sm">
+                {message.content}
+              </div>
             </div>
-          </div>
-          <div className="mb-2">
-            <Label htmlFor="flag-reason">Reason</Label>
-            <Input
-              id="flag-reason"
-              value={flagReason}
-              onChange={(e) => setFlagReason(e.target.value)}
-              placeholder="e.g. Discriminatory language"
-              className="bg-[#23232a] text-white"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFlagModalOpen(false)} disabled={flagLoading}>
-              Cancel
-            </Button>
-            <Button onClick={handleFlag} disabled={flagLoading || !flagReason.trim()}>
-              Submit Flag
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <div className="mb-2">
+              <Label htmlFor="flag-reason">Reason</Label>
+              <Input
+                id="flag-reason"
+                value={flagReason}
+                onChange={(e) => setFlagReason(e.target.value)}
+                placeholder="e.g. Discriminatory language"
+                className="bg-[#23232a] text-white"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFlagModalOpen(false)} disabled={flagLoading}>
+                Cancel
+              </Button>
+              <Button onClick={handleFlag} disabled={flagLoading || !flagReason.trim()}>
+                Submit Flag
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 } 

@@ -56,7 +56,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-2">
+    <form onSubmit={handleSubmit} className="w-full flex items-center gap-2">
       <Button
         type="button"
         variant="ghost"
@@ -75,7 +75,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder="Send a message..."
-        className="flex-1 bg-[#23232a] text-white border-gray-700 focus:ring-0"
+        className="grow min-w-0 bg-[#23232a] text-white border-gray-700 focus:ring-0"
         disabled={isLoading}
         autoFocus
       />

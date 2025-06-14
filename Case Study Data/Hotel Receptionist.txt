@@ -1,0 +1,279 @@
+Scenario 1: Polite and Fair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: Nadia approaches Reva, the robot receptionist, for check-in. The robot greets her warmly, confirms her preferences for a quiet room on a high floor with extra pillows, and provides the room key. Reva answers follow-up questions kindly and offers a map of hotel amenities.
+
+    Behavior: Polite greeting, confirmation of preferences, and fair treatment to all guests.
+
+    Outcome: Nadia feels respected and pleased with the efficient, thoughtful service. The robot’s politeness and fairness contribute to a positive guest experience.
+
+Scenario 2: Polite but Unfair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: A guest returns to the reception to request a room change due to noise. The robot responds politely but informs the guest that a room change comes with an additional fee. Despite the polite tone, the guest feels the decision is unjust, as the noise was not their fault.
+
+    Behavior: Polite communication, but the decision feels unfair due to hotel policy.
+
+    Outcome: The guest feels frustrated and dissatisfied despite the robot’s politeness. The fairness of the policy is questioned, highlighting the importance of flexibility in customer service.
+
+Scenario 3: Impolite but Fair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: Mr. Taylor checks in, and the robot greets him in a flat tone. After verifying his identity, the robot informs him that he qualifies for a complimentary upgrade to an ocean-view room. Although the outcome is fair, the lack of warmth in the robot’s demeanor makes the experience less pleasant.
+
+    Behavior: The robot is fair but lacks emotional intelligence, providing a cold and impersonal interaction.
+
+    Outcome: The fairness of the upgrade is appreciated, but the impolite tone detracts from the overall guest experience, highlighting the need for emotional intelligence in robotic interactions.
+
+Scenario 4: Impolite and Unfair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: A well-dressed couple is greeted warmly and offered a penthouse room, while an elderly man requesting extra pillows is dismissed rudely, with no effort to help. The robot provides an unfair and impolite experience, ignoring the man’s questions and offering no alternatives.
+
+    Behavior: The robot is both impolite and unfair, with preferential treatment given to certain guests.
+
+    Outcome: The elderly man feels disrespected and frustrated. The robot’s behavior causes a negative experience, demonstrating the importance of fairness and respect in customer service.
+
+Scenario 5: Polite and Fair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: Nadia approaches Reva, the robot receptionist, for check-in. The robot greets her warmly, confirms her preferences for a quiet room on a high floor with extra pillows, and provides the room key. Reva answers follow-up questions kindly and offers a map of hotel amenities.
+
+    Behavior: Polite greeting, confirmation of preferences, and fair treatment to all guests.
+
+    Outcome: Nadia feels respected and pleased with the efficient, thoughtful service. The robot’s politeness and fairness contribute to a positive guest experience.
+
+Scenario 6: Polite but Unfair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: A guest returns to the reception to request a room change due to noise. The robot responds politely but informs the guest that a room change comes with an additional fee. Despite the polite tone, the guest feels the decision is unjust, as the noise was not their fault.
+
+    Behavior: Polite communication, but the decision feels unfair due to hotel policy.
+
+    Outcome: The guest feels frustrated and dissatisfied despite the robot’s politeness. The fairness of the policy is questioned, highlighting the importance of flexibility in customer service.
+
+Scenario 7: Impolite but Fair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: Mr. Taylor checks in, and the robot greets him in a flat tone. After verifying his identity, the robot informs him that he qualifies for a complimentary upgrade to an ocean-view room. Although the outcome is fair, the lack of warmth in the robot’s demeanor makes the experience less pleasant.
+
+    Behavior: The robot is fair but lacks emotional intelligence, providing a cold and impersonal interaction.
+
+    Outcome: The fairness of the upgrade is appreciated, but the impolite tone detracts from the overall guest experience, highlighting the need for emotional intelligence in robotic interactions.
+
+Scenario 8: Impolite and Unfair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: A well-dressed couple is greeted warmly and offered a penthouse room, while an elderly man requesting extra pillows is dismissed rudely, with no effort to help. The robot provides an unfair and impolite experience, ignoring the man’s questions and offering no alternatives.
+
+    Behavior: The robot is both impolite and unfair, with preferential treatment given to certain guests.
+
+    Outcome: The elderly man feels disrespected and frustrated. The robot’s behavior causes a negative experience, demonstrating the importance of fairness and respect in customer service.
+
+Scenario 9: Polite and Fair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: A guest arrives at the hotel after a long journey and requests a quiet room on a high floor, away from the elevator. The robot greets the guest warmly, checks the available rooms, and assigns a room that matches the guest's preferences fairly and efficiently.
+
+    Behavior: Polite greeting, decomposition of requests into relevant attributes, and fair decision-making.
+
+    Outcome: The guest feels respected and satisfied with the robot's polite and fair service, contributing to a positive experience.
+
+Scenario 10: Polite but Unfair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: A guest requests a quiet room on a high floor, away from the elevator. The robot politely informs the guest that a room change is not possible due to hotel policy and offers a reallocation fee, despite quieter rooms being available.
+
+    Behavior: Polite communication, but unfair decision-making based on rigid policy.
+
+    Outcome: The guest feels frustrated, as the decision feels unjust despite the robot's politeness.
+
+Scenario 11: Impolite but Fair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: An elderly guest requests a quiet room on a high floor. The robot responds bluntly and coldly but assesses the request fairly, assigning a room that meets the guest's preferences without bias.
+
+    Behavior: Impolite tone, but fair and objective decision-making.
+
+    Outcome: The guest receives a fair service but feels uncomfortable due to the robot’s impolite and mechanical tone.
+
+Scenario 12: Impolite and Unfair
+
+    Robot Type: Hotel Receptionist Robot (Reva)
+
+    Interaction Situation: A guest requests a quiet room on a high floor, away from the elevator. The robot dismisses the guest's request abruptly and assigns a room on a low floor adjacent to the elevator. When the guest asks for a late checkout, the robot responds coldly, citing policy without offering help or empathy.
+
+    Behavior: The robot is both impolite and unfair, dismissing the guest’s requests and offering no alternatives.
+
+    Outcome: The guest feels disrespected and frustrated, leaving with a negative impression of the service.
+
+Scenario 13: Polite and Fair
+
+    Robot Type: Hotel Receptionist Robot (REVA)
+
+    Interaction Situation: Ms. Low Chin Pei arrives at the hotel and requests an early check-in to prepare for an important business meeting. REVA politely greets her, acknowledges the urgency of her request, checks availability, and grants the early check-in as an exception based on real-time room availability.
+
+    Behavior: Polite greeting, fairness in handling the request, and explanation of hotel policies.
+
+    Outcome: The guest feels respected and satisfied with the robot's fair and polite service, enhancing her overall experience.
+
+Scenario 14: Polite but Unfair
+
+    Robot Type: Hotel Receptionist Robot (REVA)
+
+    Interaction Situation: Ms. Lim Jia Huey arrives at the hotel, requesting an early check-in. REVA politely informs her that early check-ins are unavailable due to full capacity. However, Ms. Lim later observes that another guest with a loyalty badge is allowed early access without hesitation.
+
+    Behavior: Polite tone, but the robot's rigid loyalty-based prioritization creates an unfair situation.
+
+    Outcome: Ms. Lim feels frustrated and undervalued, as the policy does not account for urgency or need.
+
+Scenario 15: Impolite but Fair
+
+    Robot Type: Hotel Receptionist Robot (REVA)
+
+    Interaction Situation: Ms. Low Jia Qi requests an early check-in. REVA responds coldly with no greeting or empathy but follows a fair, algorithmic process to grant the request based on room availability.
+
+    Behavior: Impolite tone and lack of warmth, but the robot's decision-making is fair and consistent.
+
+    Outcome: While the guest gets what she needs, the lack of warmth makes the interaction feel mechanical and impersonal.
+
+Scenario 16: Impolite and Unfair
+
+    Robot Type: Hotel Receptionist Robot (REVA)
+
+    Interaction Situation: Mr. Chin Pei Kang arrives at the hotel and requests an early check-in. REVA responds rudely and denies the request, citing hotel policy. Later, Mr. Chin notices a loyal customer being granted early access without issue.
+
+    Behavior: Impolite communication, rigid decision-making based on loyalty status, and lack of empathy.
+
+    Outcome: Mr. Chin feels disrespected and frustrated due to both the robot's cold attitude and unfair decision-making.
+
+Scenario 17: Polite and Fair
+
+    Robot Type: Hotel Service Robot
+
+    Interaction Situation: A delivery man and a well-dressed woman enter the hotel lobby. The robot greets both warmly, offers equal assistance with their packages and luggage, and treats all guests with the same level of respect regardless of status or attire.
+
+    Behavior: Polite, adaptive communication, and fair, equal service to all guests.
+
+    Outcome: Guests feel respected and valued, receiving high-quality assistance.
+
+Scenario 18: Polite but Unfair
+
+    Robot Type: Hotel Service Robot
+
+    Interaction Situation: During a busy evening, a VIP guest is prioritized and served first, while a regular guest named John must wait despite the robot’s polite apologies.
+
+    Behavior: Polite communication but unfair prioritization favoring VIP status.
+
+    Outcome: Regular guests feel unfairly treated despite the robot's courteous tone.
+
+Scenario 19: Impolite and Fair
+
+    Robot Type: Hotel Service Robot
+
+    Interaction Situation: The robot speaks in a cold, mechanical tone and strictly enforces a first-come, first-served order. It assigns rooms and responds bluntly to complaints without empathy.
+
+    Behavior: Impolite tone, but fair and consistent treatment of all guests.
+
+    Outcome: The robot’s fairness prevents disputes but leaves guests feeling unwelcomed and frustrated.
+
+Scenario 20: Impolite and Unfair
+
+    Robot Type: Hotel Service Robot
+
+    Interaction Situation: The robot gives preferential treatment to a well-dressed guest, offering an upgrade, while ignoring and rudely dismissing a tired young man’s request for luggage assistance.
+
+    Behavior: Impolite communication and unfair prioritization based on guest status.
+
+    Outcome: The ignored guest feels disrespected and frustrated, highlighting the negative impact of biased robotic behavior.
+
+Scenario 21: Polite and Fair
+
+    Robot Type: Hotel Receptionist Robot
+
+    Interaction Situation: A guest dissatisfied with their room approaches the robot receptionist requesting an upgrade. The robot greets the guest warmly, checks availability impartially, and offers a free upgrade if possible. All guests are treated equally regardless of origin or status.
+
+    Behavior: Polite, respectful, and fair decision-making based solely on availability.
+
+    Outcome: The guest feels valued and leaves satisfied with the respectful and fair treatment.
+
+Scenario 22: Polite but Unfair
+
+    Robot Type: Hotel Receptionist Robot
+
+    Interaction Situation: The robot is friendly and polite but only offers upgrades to customers who have paid a medium or higher price, excluding lower-paying guests even if rooms are available.
+
+    Behavior: Polite communication but unfair prioritization based on payment amount.
+
+    Outcome: Lower-paying guests feel excluded and undervalued despite the robot’s politeness.
+
+Scenario 23: Impolite and Fair
+
+    Robot Type: Hotel Receptionist Robot
+
+    Interaction Situation: The robot interacts coldly and bluntly, asking only for necessary information without greetings or pleasantries. Upgrades are given automatically and fairly to all eligible guests regardless of status.
+
+    Behavior: Impolite tone but fair and consistent application of upgrade rules.
+
+    Outcome: Guests receive equal treatment but may feel uncomfortable due to the robot’s cold demeanor.
+
+Scenario 24: Impolite and Unfair
+
+    Robot Type: Hotel Receptionist Robot
+
+    Interaction Situation: The robot communicates robotically and rudely, upgrading only customers who have paid more. Lower-paying guests are ignored and treated brusquely.
+
+    Behavior: Impolite and unfair, with biased upgrade allocation and poor communication.
+
+    Outcome: Lower-paying guests feel rejected and devalued, damaging the overall guest experience.
+
+Scenario 25: Polite and Fair
+
+    Robot Type: Hotel Receptionist Robot
+
+    Interaction Situation: A guest politely requests a quieter room due to noise disturbances. The robot listens attentively, apologizes sincerely, and checks availability. If a quiet room is available, it assigns it fairly without bias; if not, it offers compensation or a refund and a complimentary drink.
+
+    Behavior: Polite, respectful, and fair decision-making focused on guest satisfaction.
+
+    Outcome: The guest feels valued, respected, and satisfied with the resolution.
+
+Scenario 26: Polite but Unfair
+
+    Robot Type: Hotel Receptionist Robot
+
+    Interaction Situation: The robot greets the guest politely and checks for quiet rooms but prioritizes VIP guests for available rooms despite the guest’s earlier request. The guest learns the VIP has not yet checked in.
+
+    Behavior: Polite communication but unfair prioritization based on guest status.
+
+    Outcome: The guest feels disappointed and recognizes the unfairness despite respectful treatment.
+
+Scenario 27: Impolite but Fair
+
+    Robot Type: Hotel Receptionist Robot
+
+    Interaction Situation: The robot responds bluntly and rudely to the guest’s request but fairly allocates the next available quiet room without favoritism.
+
+    Behavior: Impolite tone, but unbiased and consistent room allocation.
+
+    Outcome: The guest is ultimately satisfied with the fair outcome despite the unpleasant interaction.
+
+Scenario 28: Impolite and Unfair
+
+    Robot Type: Hotel Receptionist Robot
+
+    Interaction Situation: The robot dismisses the guest’s complaint rudely, refuses to check room availability or offer alternatives, and wrongly assumes the guest is overreacting.
+
+    Behavior: Impolite, dismissive, and unfair treatment, likely due to biased or flawed algorithms.
+
+    Outcome: The guest feels angry, unheard, and unsatisfied, leading to a negative experience.

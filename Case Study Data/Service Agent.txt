@@ -1,0 +1,39 @@
+Scenario 1: Polite and Fair
+
+    Robot Type: Robotic Customer Service Agent (S3)
+
+    Interaction Situation: Ali contacts S3 to request a refund for a defective wireless headphone. The robot responds warmly, reviews the evidence carefully, and processes a full refund consistently with previous similar cases.
+
+    Behavior: Polite and empathetic communication, fair and consistent decision-making based on policy.
+
+    Outcome: Ali feels heard, respected, and satisfied with the fair resolution, restoring trust in the service.
+
+Scenario 2: Impolite and Fair
+
+    Robot Type: Robotic Customer Service Agent (S3)
+
+    Interaction Situation: In a high-tech library, S3 bluntly enforces rules such as denying loan extensions for restricted materials, refusing access without credentials, and responding curtly without explanations or empathy.
+
+    Behavior: Impolite tone but consistent and fair enforcement of policies for all users.
+
+    Outcome: Users receive equal treatment but feel unwelcome and unsupported due to the lack of tact and empathy.
+
+Scenario 3: Polite but Unfair
+
+    Robot Type: Robotic Customer Service Agent (S3)
+
+    Interaction Situation: A customer politely reports a faulty blender but is denied a refund despite sufficient evidence. The robot maintains a courteous tone but applies inconsistent decision-making, refusing the claim that others with similar cases have had approved.
+
+    Behavior: Polite communication but biased and unfair treatment due to inconsistent application of policy.
+
+    Outcome: The customer feels frustrated and perceives unfairness, despite the robot’s kind language.
+
+Scenario 4: Impolite and Unfair
+
+    Robot Type: Robotic Customer Service Agent (S3)
+
+    Interaction Situation: Customers receive abrupt, unhelpful responses denying refund requests with little explanation, inconsistent decisions, and cold robotic tone. When users try to inquire or appeal, the robot dismisses them without consideration.
+
+    Behavior: Impolite communication, unfair and inconsistent decision-making, and lack of accountability.
+
+    Outcome: Customers feel disrespected, frustrated, and lose trust in the system due to poor service and lack of transparency.

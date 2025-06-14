@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/supabaseClient";
 import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
@@ -13,19 +13,20 @@ interface Persona {
   system_prompt: string;
 }
 
-export default function ChatPage({ params }: { params: { persona: string } }) {
-  const [persona, setPersona] = useState<Persona | null>(null);
+export default function ChatPage({ params }: { params: Promise<{ persona: string }> }) {
+  const { persona } = use(params);
+  const [personaData, setPersonaData] = useState<Persona | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     fetchPersona();
-  }, [params.persona]);
+  }, [persona]);
 
   const fetchPersona = async () => {
-    const { data: persona, error } = await supabase
+    const { data, error } = await supabase
       .from("personas")
       .select("*")
-      .eq("id", params.persona)
+      .eq("id", persona)
       .single();
 
     if (error) {
@@ -33,14 +34,14 @@ export default function ChatPage({ params }: { params: { persona: string } }) {
       return;
     }
 
-    setPersona(persona);
+    setPersonaData(data);
   };
 
   const startNewConversation = async () => {
     const { data: conversation, error } = await supabase
       .from("conversations")
       .insert({
-        persona_id: params.persona,
+        persona_id: persona,
         title: "New Conversation",
       })
       .select()
@@ -51,7 +52,7 @@ export default function ChatPage({ params }: { params: { persona: string } }) {
       return;
     }
 
-    router.push(`/chat/${params.persona}/${conversation.id}`);
+    router.push(`/chat/${persona}/${conversation.id}`);
   };
 
   return (
@@ -60,10 +61,10 @@ export default function ChatPage({ params }: { params: { persona: string } }) {
       <div className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold text-white">
-            {persona?.title || "Loading..."}
+            {personaData?.title || "Loading..."}
           </h1>
           <p className="text-gray-400">
-            Start a new conversation to begin chatting with {persona?.title || "this persona"}.
+            Start a new conversation to begin chatting with {personaData?.title || "this persona"}.
           </p>
           <Button
             onClick={startNewConversation}

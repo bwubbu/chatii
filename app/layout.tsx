@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import BlackHeader from '@/components/BlackHeader'
 import { UserProvider } from '@/components/UserContext'
+import { usePathname } from 'next/navigation'
 
 export const metadata: Metadata = {
   title: 'Chatii',
@@ -14,11 +15,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const isChatPage = pathname.startsWith('/chat');
   return (
     <html lang="en">
       <body>
         <UserProvider>
-          <BlackHeader />
+          {!isChatPage && <BlackHeader />}
           {children}
         </UserProvider>
       </body>

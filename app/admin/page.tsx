@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/supabaseClient"
 import { Button } from "@/components/ui/button"
-import { BarChart2, User, MessageCircle, Download, Activity, Users, Flag, ListChecks, PlusCircle, Pencil, Trash2, Check, X } from "lucide-react"
+import { BarChart2, User, MessageCircle, Download, Activity, Users, Flag, ListChecks, PlusCircle, Pencil, Trash2, Check, X, GitBranch } from "lucide-react"
 import { Line } from "react-chartjs-2"
 import {
   Chart as ChartJS,
@@ -34,6 +34,7 @@ import { PersonaForm, PersonaFormData } from "@/components/personas/PersonaForm"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { formatDistanceToNow } from "date-fns"
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
@@ -53,24 +54,13 @@ const chartOptions = {
   },
 }
 
-// Mock data for personas
-const initialPersonas = [
-  {
-    id: "hotel-receptionist",
-    title: "Hotel Receptionist",
-    description: "A friendly and professional hotel receptionist ready to assist with your stay",
-    avatarFallback: "HR",
-    isActive: true,
-  },
-]
-
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("analytics")
   const [isPersonaFormOpen, setIsPersonaFormOpen] = useState(false)
   const [editingPersona, setEditingPersona] = useState<PersonaFormData | null>(null)
-  const [personas, setPersonas] = useState(initialPersonas)
+  const [personas, setPersonas] = useState<any[]>([])
   const [flaggedMessages, setFlaggedMessages] = useState<any[]>([])
   const [selectedFlags, setSelectedFlags] = useState<string[]>([])
   const [filterPersona, setFilterPersona] = useState<string>("all")
@@ -78,6 +68,7 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [editingMessage, setEditingMessage] = useState<{id: string, field: string} | null>(null)
   const [editValue, setEditValue] = useState<string>("")
+  const [personaVersions, setPersonaVersions] = useState<any[]>([])
   const router = useRouter()
 
   useEffect(() => {
@@ -98,6 +89,108 @@ export default function AdminPage() {
     }
   }, [activeTab])
 
+  // TODO: Implement persona versions functionality
+  // useEffect(() => {
+  //   if (activeTab === "versions") {
+  //     fetchPersonaVersions();
+  //   }
+  // }, [activeTab]);
+
+  // const fetchPersonaVersions = async () => {
+  //   const { data, error } = await supabase
+  //     .from("persona_versions")
+  //     .select(`
+  //       *,
+  //       personas (
+  //         title
+  //       )
+  //     `)
+  //     .order("created_at", { ascending: false });
+
+  //   if (error) {
+  //     console.error("Error fetching persona versions:", error);
+  //     return;
+  //   }
+
+  //   setPersonaVersions(data || []);
+  // };
+
+  // const createNewVersion = async (personaId: string) => {
+  //   // Get flagged messages for the last month
+  //   const oneMonthAgo = new Date();
+  //   oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+  //   const { data: flags, error } = await supabase
+  //     .from("flagged_messages")
+  //     .select("*")
+  //     .gte("created_at", oneMonthAgo.toISOString())
+  //     .eq("persona_id", personaId);
+
+  //   if (error) {
+  //     console.error("Error fetching flagged messages:", error);
+  //     return;
+  //   }
+
+  //   // Get current version number
+  //   const { data: currentVersion } = await supabase
+  //     .from("persona_versions")
+  //     .select("version_number")
+  //     .eq("persona_id", personaId)
+  //     .order("version_number", { ascending: false })
+  //     .limit(1)
+  //     .single();
+
+  //   const newVersionNumber = (currentVersion?.version_number || 0) + 1;
+
+  //   // Create new version
+  //   const { error: insertError } = await supabase
+  //     .from("persona_versions")
+  //     .insert({
+  //       persona_id: personaId,
+  //       version_number: newVersionNumber,
+  //       training_data: {
+  //         flagged_messages: flags,
+  //         metrics: {
+  //           total_flags: flags.length,
+  //           categories: flags.reduce((acc: any, flag) => {
+  //             acc[flag.reason] = (acc[flag.reason] || 0) + 1;
+  //           return acc;
+  //           }, {})
+  //         }
+  //       },
+  //       status: "draft"
+  //     });
+
+  //   if (insertError) {
+  //     console.error("Error creating new version:", insertError);
+  //     return;
+  //   }
+
+  //   fetchPersonaVersions();
+  // };
+
+  // const activateVersion = async (versionId: string) => {
+  //   // Deactivate current active version
+  //   await supabase
+  //     .from("persona_versions")
+  //     .update({ status: "archived" })
+  //     .eq("persona_id", personaVersions.find(v => v.id === versionId)?.persona_id)
+  //     .eq("status", "active");
+
+  //   // Activate new version
+  //   const { error } = await supabase
+  //     .from("persona_versions")
+  //     .update({ status: "active" })
+  //     .eq("id", versionId);
+
+  //   if (error) {
+  //     console.error("Error activating version:", error);
+  //     return;
+  //   }
+
+  //   fetchPersonaVersions();
+  // };
+
   const filteredMessages = flaggedMessages.filter(msg => {
     const matchesPersona = filterPersona === "all" || msg.persona_title === filterPersona
     const matchesStatus = filterStatus === "all" || msg.status === filterStatus
@@ -111,20 +204,31 @@ export default function AdminPage() {
   const uniquePersonas = Array.from(new Set(flaggedMessages.map(msg => msg.persona_title)))
   const uniqueStatuses = Array.from(new Set(flaggedMessages.map(msg => msg.status)))
 
+  useEffect(() => {
+    if (activeTab === "personas") {
+      const fetchPersonas = async () => {
+        const { data, error } = await supabase.from("personas").select("*");
+        console.log("[Admin] Fetched personas:", data, error);
+        setPersonas(data || []);
+      };
+      fetchPersonas();
+    }
+  }, [activeTab]);
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-white">Loading...</div>
   }
 
   const handlePersonaSubmit = async (data: PersonaFormData) => {
-    let trainingDataUrl = data.trainingDataFile ? null : ((editingPersona as any)?.training_data_url || null);
-    if (data.trainingDataFile) {
+    let avatarUrl = (editingPersona as any)?.avatarUrl || null;
+    if (data.avatarImage) {
       // Upload to Supabase Storage
-      const fileExt = data.trainingDataFile.name.split('.').pop();
-      const filePath = `training-data/${data.title.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('training-data').upload(filePath, data.trainingDataFile, { upsert: true });
+      const fileExt = data.avatarImage.name.split('.').pop();
+      const filePath = `avatars/${data.title.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, data.avatarImage, { upsert: true });
       if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('training-data').getPublicUrl(filePath);
-        trainingDataUrl = urlData.publicUrl;
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+        avatarUrl = urlData.publicUrl;
       }
     }
     if (editingPersona) {
@@ -132,20 +236,18 @@ export default function AdminPage() {
       await supabase.from('personas').update({
         title: data.title,
         description: data.description,
-        avatarFallback: data.avatarFallback,
+        avatarUrl: avatarUrl,
         isActive: data.isActive,
         systemPrompt: data.systemPrompt,
-        training_data_url: trainingDataUrl,
       }).eq('id', editingPersona.id);
     } else {
       // Add new persona to Supabase
       await supabase.from('personas').insert({
         title: data.title,
         description: data.description,
-        avatarFallback: data.avatarFallback,
+        avatarUrl: avatarUrl,
         isActive: data.isActive,
         systemPrompt: data.systemPrompt,
-        training_data_url: trainingDataUrl,
       });
     }
     setIsPersonaFormOpen(false);
@@ -317,6 +419,16 @@ export default function AdminPage() {
           >
             <Flag className="w-4 h-4 mr-2" /> Flagged Responses
           </button>
+          <button 
+            onClick={() => setActiveTab("versions")}
+            className={`flex items-center px-4 py-2 rounded-md ${
+              activeTab === "versions" 
+                ? "bg-[#23272f] text-white font-medium border border-[#23272f]" 
+                : "text-gray-400 hover:text-white border border-transparent hover:border-[#23272f]"
+            }`}
+          >
+            <GitBranch className="w-4 h-4 mr-2" /> Versions
+          </button>
         </div>
 
         {/* Content based on active tab */}
@@ -386,16 +498,14 @@ export default function AdminPage() {
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold text-white">Manage Personas</h1>
               <Button onClick={() => setIsPersonaFormOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add New Persona
+                <PlusCircle className="w-4 h-4 mr-2" /> Add Persona
               </Button>
             </div>
-
             <Card className="bg-[#20232a] border-[#23272f]">
               <CardHeader>
-                <CardTitle className="text-white">Personas List</CardTitle>
+                <CardTitle className="text-white">Personas</CardTitle>
                 <CardDescription className="text-gray-400">
-                  Manage your chat personas. You can add, edit, or remove personas here.
+                  Create and manage your AI personas
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -406,45 +516,59 @@ export default function AdminPage() {
                       <TableHead className="text-gray-400">Title</TableHead>
                       <TableHead className="text-gray-400">Description</TableHead>
                       <TableHead className="text-gray-400">Status</TableHead>
-                      <TableHead className="text-right text-gray-400">Actions</TableHead>
+                      <TableHead className="text-gray-400 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {personas.map((persona) => (
-                      <TableRow key={persona.id}>
+                    {personas.map(persona => (
+                      <TableRow key={persona.id} className="hover:bg-[#23272f]/40 transition-colors">
                         <TableCell>
-                          <div className="w-10 h-10 rounded-full bg-[#23272f] flex items-center justify-center text-white">
-                            {persona.avatarFallback}
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center overflow-hidden">
+                            {persona.avatarUrl ? (
+                              <img src={persona.avatarUrl} alt={persona.title} className="w-10 h-10 object-cover rounded-full" />
+                            ) : (
+                              <span className="text-lg font-bold text-white">{persona.title?.[0] || "?"}</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="font-medium text-white">{persona.title}</TableCell>
-                        <TableCell className="text-gray-400">{persona.description}</TableCell>
+                        <TableCell className="text-gray-300">{persona.description}</TableCell>
                         <TableCell>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              persona.isActive
-                                ? "bg-green-900/30 text-green-400"
-                                : "bg-red-900/30 text-red-400"
-                            }`}
-                          >
-                            {persona.isActive ? "Active" : "Inactive"}
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            persona.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {persona.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
-                              variant="ghost"
                               size="icon"
+                              variant="ghost"
                               onClick={() => handleEditPersona(persona)}
+                              className="hover:bg-blue-500/10"
+                              aria-label="Edit Persona"
                             >
-                              <Pencil className="h-4 w-4 text-gray-400" />
+                              <Pencil className="h-4 w-4 text-blue-400" />
                             </Button>
-                            <Button
-                              variant="ghost"
+                            {/* TODO: Implement persona versions functionality */}
+                            {/* <Button
                               size="icon"
-                              onClick={() => handleDeletePersona(persona.id)}
+                              variant="ghost"
+                              onClick={() => createNewVersion(persona.id)}
+                              className="hover:bg-purple-500/10"
+                              aria-label="Create Version"
                             >
-                              <Trash2 className="h-4 w-4 text-gray-400" />
+                              <GitBranch className="h-4 w-4 text-purple-400" />
+                            </Button> */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="hover:bg-red-500/10"
+                              onClick={() => handleDeletePersona(persona.id)}
+                              aria-label="Delete Persona"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-400" />
                             </Button>
                           </div>
                         </TableCell>
@@ -461,131 +585,160 @@ export default function AdminPage() {
           <div>
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold text-white">Flagged Responses</h1>
-              <Button onClick={exportSelectedFlags} disabled={selectedFlags.length === 0}>
-                Export Selected as JSON
-              </Button>
             </div>
             <Card className="bg-[#20232a] border-[#23272f]">
               <CardHeader>
                 <CardTitle className="text-white">Flagged Messages</CardTitle>
                 <CardDescription className="text-gray-400">
-                  Review flagged chatbot responses. Select and export for training data improvement.
+                  Review flagged chatbot responses. Select and moderate for training data improvement.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="Search messages..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="bg-[#23232a] text-white"
-                    />
-                  </div>
-                  <Select value={filterPersona} onValueChange={setFilterPersona}>
-                    <SelectTrigger className="w-[180px] bg-[#23232a] text-white">
-                      <SelectValue placeholder="Filter by persona" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Personas</SelectItem>
-                      {uniquePersonas.map(persona => (
-                        <SelectItem key={persona} value={persona}>{persona}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[180px] bg-[#23232a] text-white">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      {uniqueStatuses.map(status => (
-                        <SelectItem key={status} value={status}>{status}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead><Checkbox checked={selectedFlags.length === filteredMessages.length && filteredMessages.length > 0} onCheckedChange={selectAllFlags} /></TableHead>
                       <TableHead className="text-gray-400">Persona</TableHead>
-                      <TableHead className="text-gray-400">Flagged Response</TableHead>
-                      <TableHead className="text-gray-400">User Message</TableHead>
-                      <TableHead className="text-gray-400">Reason</TableHead>
+                      <TableHead className="text-gray-400">Severity</TableHead>
                       <TableHead className="text-gray-400">Status</TableHead>
+                      <TableHead className="text-gray-400">Reason</TableHead>
+                      <TableHead className="text-gray-400">Flagged Response</TableHead>
+                      <TableHead className="text-gray-400">Context</TableHead>
+                      <TableHead className="text-gray-400">Reporter Info</TableHead>
+                      <TableHead className="text-gray-400">Timestamp</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMessages.map((msg) => (
+                    {filteredMessages.map(msg => (
                       <TableRow key={msg.id}>
-                        <TableCell><Checkbox checked={selectedFlags.includes(msg.id)} onCheckedChange={() => toggleFlag(msg.id)} /></TableCell>
                         <TableCell>{msg.persona_title}</TableCell>
-                        <TableCell className="max-w-xs truncate" title={msg.flagged_message}>{msg.flagged_message}</TableCell>
-                        <TableCell className="max-w-xs truncate" title={msg.user_message}>{msg.user_message}</TableCell>
                         <TableCell>
-                          {editingMessage?.id === msg.id && editingMessage.field === "reason" ? (
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="h-8 bg-[#23232a] text-white"
-                              />
-                              <Button size="sm" variant="ghost" onClick={saveEdit} className="h-8 w-8 p-0">
-                                <Check className="h-4 w-4 text-green-500" />
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={cancelEdit} className="h-8 w-8 p-0">
-                                <X className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div 
-                              className="cursor-pointer hover:bg-[#23232a] p-1 rounded"
-                              onClick={() => startEditing(msg.id, "reason", msg.reason)}
-                            >
-                              {msg.reason}
-                            </div>
-                          )}
+                          <span className="px-2 py-1 rounded-full text-xs bg-red-600/20 text-red-400 font-bold">HIGH</span>
                         </TableCell>
                         <TableCell>
-                          {editingMessage?.id === msg.id && editingMessage.field === "status" ? (
-                            <div className="flex items-center gap-2">
-                              <Select value={editValue} onValueChange={setEditValue}>
-                                <SelectTrigger className="h-8 w-[120px] bg-[#23232a] text-white">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="reviewed">Reviewed</SelectItem>
-                                  <SelectItem value="resolved">Resolved</SelectItem>
-                                  <SelectItem value="dismissed">Dismissed</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Button size="sm" variant="ghost" onClick={saveEdit} className="h-8 w-8 p-0">
-                                <Check className="h-4 w-4 text-green-500" />
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={cancelEdit} className="h-8 w-8 p-0">
-                                <X className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div 
-                              className="cursor-pointer hover:bg-[#23232a] p-1 rounded"
-                              onClick={() => startEditing(msg.id, "status", msg.status)}
-                            >
-                              {msg.status}
-                            </div>
-                          )}
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            msg.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                            msg.status === 'resolved' ? 'bg-green-500/20 text-green-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {msg.status.charAt(0).toUpperCase() + msg.status.slice(1)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-red-400 font-medium">{msg.reason}</span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="max-w-xs text-sm">{msg.content}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="bg-[#18181b] rounded px-2 py-1 text-xs text-gray-200">{msg.context}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs text-gray-400">
+                            Email: {msg.reporter?.email || 'N/A'}<br/>
+                            Previous Reports: {msg.reporter?.previous_reports ?? 'N/A'}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(msg.created_at).toLocaleString()}
                         </TableCell>
                       </TableRow>
                     ))}
                     {filteredMessages.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-gray-400 py-4">
+                        <TableCell colSpan={8} className="text-center text-gray-400 py-4">
                           No flagged messages found
                         </TableCell>
                       </TableRow>
                     )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === "versions" && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold text-white">Persona Versions</h1>
+            </div>
+            <Card className="bg-[#20232a] border-[#23272f]">
+              <CardHeader>
+                <CardTitle className="text-white">Version History</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Manage and review persona versions based on collected feedback
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-gray-400">Persona</TableHead>
+                      <TableHead className="text-gray-400">Version</TableHead>
+                      <TableHead className="text-gray-400">Status</TableHead>
+                      <TableHead className="text-gray-400">Created</TableHead>
+                      <TableHead className="text-gray-400">Metrics</TableHead>
+                      <TableHead className="text-gray-400">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {personaVersions.map(version => (
+                      <TableRow key={version.id}>
+                        <TableCell>{version.personas.title}</TableCell>
+                        <TableCell>v{version.version_number}</TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            version.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                            version.status === 'draft' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {version.status}
+                          </span>
+                        </TableCell>
+                        <TableCell>{formatDistanceToNow(new Date(version.created_at))} ago</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <div>Flags: {version.training_data.metrics.total_flags}</div>
+                            <div className="text-gray-400 text-xs">
+                              {Object.entries(version.training_data.metrics.categories)
+                                .map(([category, count]) => `${category}: ${count}`)
+                                .join(', ')}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            {/* TODO: Implement persona versions functionality */}
+                            {/* {version.status === 'draft' && (
+                              <Button
+                                size="sm"
+                                onClick={() => activateVersion(version.id)}
+                              >
+                                Activate
+                              </Button>
+                            )} */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const blob = new Blob(
+                                  [JSON.stringify(version.training_data, null, 2)],
+                                  { type: "application/json" }
+                                );
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `${version.personas.title}-v${version.version_number}.json`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                            >
+                              Export
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>

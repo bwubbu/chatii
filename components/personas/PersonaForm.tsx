@@ -24,11 +24,9 @@ export interface PersonaFormData {
   id?: string;
   title: string;
   description: string;
-  avatarFallback: string;
   isActive: boolean;
   systemPrompt?: string;
   avatarImage?: File;
-  trainingDataFile?: File;
 }
 
 export function PersonaForm({
@@ -41,7 +39,6 @@ export function PersonaForm({
     initialData || {
       title: "",
       description: "",
-      avatarFallback: "",
       isActive: true,
       systemPrompt: "",
     }
@@ -92,19 +89,6 @@ export function PersonaForm({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="avatarFallback" className="text-gray-400">Avatar Fallback</Label>
-              <Input
-                id="avatarFallback"
-                value={formData.avatarFallback}
-                onChange={(e) =>
-                  setFormData({ ...formData, avatarFallback: e.target.value })
-                }
-                maxLength={2}
-                required
-                className="bg-[#23272f] border-[#23272f] text-white"
-              />
-            </div>
-            <div className="grid gap-2">
               <Label htmlFor="systemPrompt" className="text-gray-400">System Prompt</Label>
               <Textarea
                 id="systemPrompt"
@@ -130,22 +114,6 @@ export function PersonaForm({
                 }
                 className="bg-[#23272f] border-[#23272f] text-white"
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="trainingData" className="text-gray-400">Training Data (JSON, optional)</Label>
-              <Input
-                id="trainingData"
-                type="file"
-                accept="application/json"
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    trainingDataFile: e.target.files?.[0],
-                  })
-                }
-                className="bg-[#23272f] border-[#23272f] text-white"
-              />
-              <span className="text-xs text-gray-500">Upload a JSON file with training data for this persona. Leave empty to rely on user feedback.</span>
             </div>
             <div className="flex items-center space-x-2">
               <Switch

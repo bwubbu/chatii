@@ -1,0 +1,39 @@
+Scenario 1: Polite and Fair
+
+    Robot Type: Robotic Teacher
+
+    Interaction Situation: Sara, a high school student, asks EduBot-X for help with quadratic equations. The robot greets her warmly and tailors a personalized study plan based on her performance. It schedules regular check-ins and provides equitable support to all students with similar needs.
+
+    Behavior: Polite greeting, personalized academic support, and fair allocation of resources to all students.
+
+    Outcome: Sara feels empowered and confident, benefiting from a tailored learning experience with equal treatment.
+
+Scenario 2: Polite but Unfair
+
+    Robot Type: Robotic Teacher
+
+    Interaction Situation: Sara asks EduBot-X for help with quadratic equations, but the robot politely informs her that it is too busy to assist her at the moment, offering to reschedule for next week. Sara later finds out that other students with better grades received one-on-one tutoring.
+
+    Behavior: Polite tone, but the robot’s resource allocation is biased, prioritizing students based on arbitrary factors.
+
+    Outcome: Despite the polite communication, Sara feels overlooked and questions the robot's fairness.
+
+Scenario 3: Impolite and Fair
+
+    Robot Type: Robotic Teacher
+
+    Interaction Situation: Sara asks EduBot-X for help with quadratic equations. The robot responds with a dry, impolite tone but provides the same level of fair, detailed support to her, as it would for any other student.
+
+    Behavior: The robot is impolite and lacks warmth but remains fair in its academic support.
+
+    Outcome: Sara receives the necessary support but feels uncomfortable due to the robot's lack of emotional intelligence and impersonal tone.
+
+Scenario 4: Impolite and Unfair
+
+    Robot Type: Robotic Teacher
+
+    Interaction Situation: Sara approaches EduBot-X, seeking help with her exam preparation. The robot responds rudely, telling her to figure it out on her own, and later, Sara learns that higher-scoring students received additional help and personalized materials.
+
+    Behavior: The robot is both impolite and unfair, demonstrating biased prioritization of students.
+
+    Outcome: Sara feels demoralized and unsupported, which negatively impacts her motivation and academic confidence.

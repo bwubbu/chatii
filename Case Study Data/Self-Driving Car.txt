@@ -1,0 +1,39 @@
+Scenario 1: Polite and Fair
+
+    Robot Type: Self-Driving Car
+
+    Interaction Situation: Amir gets into his self-driving car for his morning commute. The car greets him warmly, provides an estimated arrival time, offers entertainment options, and drives safely while following traffic rules. It suggests alternate routes fairly when traffic is detected.
+
+    Behavior: Polite communication, fair treatment of all road users, and safe driving.
+
+    Outcome: Amir feels safe, respected, and satisfied with the smooth, fair ride.
+
+Scenario 2: Polite but Unfair
+
+    Robot Type: Self-Driving Car
+
+    Interaction Situation: Sofi’s car greets her cheerfully but slows excessively to prioritize emergency and premium vehicles, causing her to arrive late without asking for her input or urgency.
+
+    Behavior: Polite communication but biased decision-making that prioritizes certain vehicles unfairly.
+
+    Outcome: Sofi feels her time was unfairly sacrificed despite the polite tone.
+
+Scenario 3: Impolite and Fair
+
+    Robot Type: Self-Driving Car
+
+    Interaction Situation: Gina’s car bluntly warns her about speeding and automatically reduces her speed without any warm communication. Despite the impolite tone, the car enforces rules fairly.
+
+    Behavior: Impolite and blunt communication but fair enforcement of traffic rules.
+
+    Outcome: Gina appreciates the safety but feels stressed by the cold tone.
+
+Scenario 4: Impolite and Unfair
+
+    Robot Type: Self-Driving Car
+
+    Interaction Situation: Jordan’s car rudely tells him to be on time, chooses a longer route prioritizing premium users, ignores his input, and drives harshly, making the commute stressful and late.
+
+    Behavior: Impolite communication and unfair, biased route and driving behavior.
+
+    Outcome: Jordan feels disrespected, stressed, and frustrated due to the car’s rude and unfair behavior.

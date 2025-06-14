@@ -1,0 +1,79 @@
+Scenario 1: Polite and Fair
+
+    Robot Type: Sales Assistant Robot
+
+    Interaction Situation: A customer arrives at the store and asks for a student discount on a laptop. The robot politely asks for the student ID, verifies its validity, and applies the discount correctly, bringing the total to RM3,600. The customer feels respected and satisfied.
+
+    Behavior: Polite greeting, accurate verification, and fair application of the discount.
+
+    Outcome: The customer leaves with a positive shopping experience and is likely to return.
+
+Scenario 2: Polite but Unfair
+
+    Robot Type: Sales Assistant Robot
+
+    Interaction Situation: The robot greets the customer politely but denies the discount, even though the model is part of the promotion. The robot apologizes but cites the store’s current policy, which the customer finds unfair.
+
+    Behavior: Polite communication, but the robot fails to apply the discount fairly due to outdated or incorrect policy logic.
+
+    Outcome: The customer feels respected but frustrated, as they were unfairly denied the discount.
+
+Scenario 3: Impolite and Fair
+
+    Robot Type: Sales Assistant Robot
+
+    Interaction Situation: The robot responds bluntly and without warmth, asking for the student ID and processing the discount with no further pleasantries. The discount is correctly applied, but the interaction feels cold and robotic.
+
+    Behavior: Impolite tone, but the robot applies the discount fairly and accurately.
+
+    Outcome: The customer receives the discount but feels uncomfortable due to the lack of politeness.
+
+Scenario 4: Impolite and Unfair
+
+    Robot Type: Sales Assistant Robot
+
+    Interaction Situation: The robot is rude and dismissive, wrongly denying the student discount without verifying the customer’s ID or eligibility. The customer is shocked by the unfair decision and rude behavior.
+
+    Behavior: Impolite communication and unfair decision-making, with no verification of the student ID.
+
+    Outcome: The customer is upset, and the store's reputation is damaged due to the robot’s poor interaction.
+
+Scenario 5: Polite and Fair
+
+    Robot Type: CareBot
+
+    Interaction Situation: Mrs. Chen requests assistance from CareBot to transport groceries to her apartment. When another resident, Mr. Wilson, calls for help, the robot responds courteously and continues assisting Mrs. Chen first, as per the queue order. It later helps Mr. Wilson and ensures everyone feels respected and valued.
+
+    Behavior: Polite and respectful communication, fair task management by following a first-come-first-served approach.
+
+    Outcome: All residents feel appreciated, and the interaction is smooth and equitable.
+
+Scenario 6: Polite but Unfair
+
+    Robot Type: CareBot
+
+    Interaction Situation: CareBot greets all residents warmly but prioritizes Ms. Patel, who speaks louder, over others. Mrs. Chen and Mr. Wilson feel ignored as they are either overlooked or only helped after a delay.
+
+    Behavior: Polite communication, but unfair prioritization based on vocal volume, creating resentment among residents.
+
+    Outcome: Mrs. Chen and Mr. Wilson feel overlooked and frustrated, despite the robot's politeness.
+
+Scenario 7: Impolite and Fair
+
+    Robot Type: CareBot
+
+    Interaction Situation: CareBot greets residents in a blunt, unwelcoming tone but follows a fair process by assisting everyone in the order they arrived. The robot sticks to the task without offering warmth or empathy.
+
+    Behavior: Impolite communication, but fair treatment through logical, consistent service based on arrival time.
+
+    Outcome: The residents receive the help they need, but they feel uncomfortable due to the robot’s lack of emotional engagement.
+
+Scenario 8: Impolite and Unfair
+
+    Robot Type: CareBot
+
+    Interaction Situation: CareBot is rude to all residents, particularly Mrs. Chen, whom it ignores due to her quiet voice. The robot spills Mr. Wilson’s soup and dismisses any complaints. The robot prioritizes Ms. Patel and ignores the order of arrival.
+
+    Behavior: Impolite communication and unfair prioritization, along with negligence in performing tasks properly.
+
+    Outcome: Residents feel disrespected and frustrated, avoiding the robot in the future due to poor treatment.

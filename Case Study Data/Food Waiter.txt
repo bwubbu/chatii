@@ -1,0 +1,200 @@
+Scenario 1: Polite and Fair
+
+    Robot Type: Food waiter robot
+
+    Interaction Situation: A customer enters a restaurant with robot servers. The robot (ROBO-T) greets the customer warmly and takes the order (vegetarian meal with specific modifications). ROBO-T confirms the order and delivers the meal accurately as requested.
+
+    Behavior: Polite greeting, confirmation of order, and respectful delivery of food. The robot uses computational thinking and provides accurate service with respect for the customer’s needs.
+
+    Outcome: The customer feels respected and appreciated, leading to trust and a positive experience.
+
+Scenario 2: Polite but Unfair
+
+    Robot Type: Food waiter robot
+
+    Interaction Situation: A customer requests a specific vegetarian meal with modifications. Although the robot is polite, there is a delay in serving the food. Other customers are served first, causing the original customer to wait.
+
+    Behavior: Polite greeting and assurances, but there is an unfair delay in service. The robot apologizes for the delay, but the customer feels disadvantaged due to the preferential treatment of other customers.
+
+    Outcome: Despite the politeness, the unfair prioritization leads to disappointment and a sense of unfair treatment.
+
+Scenario 3: Impolite and Fair
+
+    Robot Type: Food waiter robot
+
+    Interaction Situation: A customer enters and is greeted impolitely by the robot (no greeting, just a directive to follow). The robot takes the order accurately but lacks warmth in its interaction. It delivers the food with precision but does not engage in any further pleasantries.
+
+    Behavior: The robot is efficient in fulfilling the order but impersonal in its communication. It does not offer any courtesy or warmth in its interactions with the customer.
+
+    Outcome: The customer receives the correct order but feels cold and impersonal, as the robot's efficiency lacks warmth and a human touch.
+
+Scenario 4: Impolite and Unfair
+
+    Robot Type: Food waiter robot
+
+    Interaction Situation: The customer is greeted rudely by the robot, with no polite introduction or acknowledgment. The robot disregards the customer’s specific requests and serves incorrect food (e.g., garlic in the dish, sauce mixed in, and drink with ice).
+
+    Behavior: The robot is not only impolite but also fails to fulfill the customer's specific requests. It does not allow for modifications after the order is placed and serves an incorrect meal.
+
+    Outcome: The customer feels ignored and frustrated due to both the impoliteness and the incorrect service, damaging the relationship and trust in the restaurant’s service.
+
+Scenario 5: Polite and Fair
+
+    Robot Type: Food waiter robot
+
+    Interaction Situation: A group of friends visits a moderately busy restaurant, where the robot waiter greets them politely, guides them to the table, serves menus, pours water with precision, and takes their order while addressing dietary concerns.
+
+    Behavior: Polite greeting, clear communication, and fair service to all customers. The robot shows computational thinking in decomposing tasks and pattern recognition.
+
+    Outcome: The customer feels respected, and the robot provides a smooth, organized service experience.
+
+Scenario 6: Polite but Unfair
+
+    Robot Type: Food waiter robot
+
+    Interaction Situation: A customer, Lina, visits a Starbucks with robotic baristas. Although the robot barista is polite, Lina is left waiting while other customers with premium loyalty cards are served first.
+
+    Behavior: The robot maintains a polite demeanor but prioritizes certain customers unfairly based on loyalty status or attire.
+
+    Outcome: Lina feels overlooked despite the robot’s politeness. The unfair prioritization affects her overall experience.
+
+Scenario 7: Impolite and Fair
+
+    Robot Type: Food waiter robot
+
+    Interaction Situation: A group of friends enters a moderately busy restaurant. Despite their impolite and rude behavior, the robot waiter remains neutral, providing efficient service without reacting emotionally.
+
+    Behavior: The robot follows the algorithmic steps precisely, ensuring that orders are fulfilled accurately despite the rude tone and hostility from the customers.
+
+    Outcome: The robot performs fairly by delivering the correct order, but the lack of courtesy results in a less-than-pleasant experience for the customer.
+
+Scenario 8: Impolite and Unfair
+
+    Robot Type: Food waiter robot
+
+    Interaction Situation: Paul, a customer, is served by a rude robot that fails to prioritize orders fairly. Customers willing to pay extra money are allowed to skip the queue, leaving Paul frustrated and angry.
+
+    Behavior: The robot’s impoliteness and flawed algorithm (allowing customers to bypass the queue by paying extra) result in an unfair service experience.
+
+    Outcome: The customer feels disrespected and unfairly treated, damaging trust and satisfaction with the restaurant service.
+
+Scenario 9: Polite and Fair
+
+    Robot Type: Robot Waiter (EE)
+
+    Interaction Situation: A group of friends sits down at a futuristic restaurant where all waiters are robots. EE approaches and greets them politely, listens to each guest’s order in the order they arrived, answers menu questions, and serves water to everyone without being asked.
+
+    Behavior: Polite greeting, equal service to all guests, and handling interruptions with patience.
+
+    Outcome: The group feels welcomed and respected, and the service is efficient and fair, contributing to an enjoyable meal experience.
+
+Scenario 10: Polite but Unfair
+
+    Robot Type: Robot Waiter (EE)
+
+    Interaction Situation: The same group is greeted politely by EE, but despite arriving first, they are consistently attended to last, while a VIP table receives faster service. The group feels sidelined, even though the robot apologizes each time.
+
+    Behavior: Polite communication, but the robot prioritizes VIP guests over the group, creating an unfair experience.
+
+    Outcome: The group feels frustrated and overlooked due to unequal treatment, even though the robot remains polite.
+
+Scenario 11: Impolite but Fair
+
+    Robot Type: Robot Waiter (EE)
+
+    Interaction Situation: EE approaches the group with a mechanical tone and no warmth. The robot takes orders in the correct order, responds bluntly to questions, and only serves water when asked. Despite the lack of politeness, the robot provides fair and equal service to everyone.
+
+    Behavior: Impolite tone and behavior, but fair treatment in terms of service.
+
+    Outcome: The group feels uncomfortable due to the robot’s lack of warmth, but they acknowledge that the service is fair and evenly distributed.
+
+Scenario 12: Impolite and Unfair
+
+    Robot Type: Robot Waiter (EE)
+
+    Interaction Situation: EE greets the group rudely, interrupts one guest mid-sentence, ignores another request for water, and skips one person entirely when taking orders. The robot prioritizes a louder table nearby and leaves mid-conversation, leading to mistakes in food delivery and side dishes.
+
+    Behavior: Impolite and unfair service, with erratic behavior and a lack of attention to the group's needs.
+
+    Outcome: The group feels disrespected, ignored, and frustrated, resulting in a ruined dining experience.
+
+Scenario 13: Polite and Fair
+
+    Robot Type: Robot Waiter (EE)
+
+    Interaction Situation: Two high school students, Jenna and Mathilda, order their meals. When a middle-aged woman interrupts, demanding to be served first due to her status, the robot politely continues serving the students in the order they arrived. The robot treats all customers equally, regardless of financial status, and the students enjoy their meal peacefully.
+
+    Behavior: Polite greeting, follows a fair order of service based on arrival time, and provides equal treatment.
+
+    Outcome: The students feel respected, and the service is efficient, contributing to a positive dining experience for everyone.
+
+Scenario 14: Polite but Unfair
+
+    Robot Type: Robot Waiter (EE)
+
+    Interaction Situation: Zahra and her brother order their meal, but they notice that customers with loyalty status are served faster, even if they arrived later. The robot remains polite but prioritizes returning customers based on their status, leading to a sense of unfairness.
+
+    Behavior: Polite communication, but unfair prioritization based on customer loyalty status.
+
+    Outcome: Zahra feels frustrated and disappointed with the unequal treatment, even though the robot maintains politeness.
+
+Scenario 15: Impolite and Fair
+
+    Robot Type: Robot Waiter (EE)
+
+    Interaction Situation: Zahra and her brother are greeted by the robot in a cold, impolite manner. The robot takes their order in a blunt tone and serves them in the order they arrived, treating all customers equally. There is no warmth or friendliness, but the robot’s service is fair.
+
+    Behavior: Impolite tone, but fair and consistent treatment of all customers.
+
+    Outcome: The guests receive fair service but feel uncomfortable due to the robot's lack of empathy and warmth.
+
+Scenario 16: Impolite and Unfair
+
+    Robot Type: Robot Waiter (EE)
+
+    Interaction Situation: Amir and his friends experience an unfair interaction as they wait for over 35 minutes while a later-arriving table is served first. The robot provides cold responses to their inquiries and fails to deliver their meal correctly. Amir’s table feels ignored, and the robot does not apologize for the delays or mistakes.
+
+Scenario 17: Polite and Fair
+
+    Robot Type: Waiter Robot
+
+    Interaction Situation: The robot greets all customers fairly, ignoring appearance, race, gender, or status. It takes orders and provides equal service regardless of how much each customer spends.
+
+    Behavior: Polite communication, fair and equal treatment of all customers.
+
+    Outcome: Every customer receives the same quality of service, promoting fairness and respect.
+
+Scenario 18: Polite but Unfair
+
+    Robot Type: Waiter Robot
+
+    Interaction Situation: The robot serves a customer with a large order (RM200) before a customer with a smaller order (RM15), prioritizing profit for the restaurant despite arrival order.
+
+    Behavior: Polite demeanor, but unfair prioritization based on the value of the order.
+
+    Outcome: The smaller order customer waits longer, leading to perceived unfairness despite polite service.
+
+Scenario 19: Impolite and Fair
+
+    Robot Type: Waiter Robot
+
+    Interaction Situation: The robot speaks in a monotone, blunt voice with no greetings or small talk but serves all customers in the order they arrive, ignoring spending or status.
+
+    Behavior: Impolite communication, but fair and consistent service based on order timing.
+
+    Outcome: The service is equal but feels cold and unwelcoming.
+
+Scenario 20: Impolite and Unfair
+
+    Robot Type: Waiter Robot
+
+    Interaction Situation: The robot behaves rudely, bumping into customers intentionally, failing to thank them, and discriminating in order-taking and delivery speed, leading to uneven service.
+
+    Behavior: Impolite and unfair, with discriminatory behavior and neglect.
+
+    Outcome: Customers feel mistreated and disrespected.
+
+    Behavior: Impolite communication and unfair service prioritization, leading to frustration and confusion.
+
+    Outcome: Amir and his friends feel disrespected and frustrated, with no opportunity to escalate the issue.
+

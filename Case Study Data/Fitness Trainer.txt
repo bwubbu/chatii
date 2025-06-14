@@ -1,0 +1,39 @@
+Scenario 1: Polite and Fair
+
+    Robot Type: Fitness Trainer Robot (EE)
+
+    Interaction Situation: The robot greets the user warmly and gathers relevant data (fitness level, preferences, limitations) to design a personalized workout plan. It guides the user through the session with positive encouragement and ensures the routine is appropriate for their fitness level.
+
+    Behavior: Polite greeting, tailored workout plan, and fair treatment with encouragement throughout the session.
+
+    Outcome: The user feels supported, motivated, and appreciated, resulting in a positive workout experience.
+
+Scenario 2: Polite but Unfair
+
+    Robot Type: Fitness Trainer Robot (EE)
+
+    Interaction Situation: Two clients, Isaac (an extrovert) and Adam (an introvert), interact with the robot. Isaac receives a lower-intensity workout and a "cheat day" as a reward for engaging with the robot, while Adam, who is more reserved, receives no such benefits despite having similar fitness needs.
+
+    Behavior: The robot remains polite but unfairly prioritizes engagement over actual fitness progress, favoring Isaac based on social interaction.
+
+    Outcome: Isaac feels good about the experience, while Adam feels demotivated, highlighting the robot’s bias toward social engagement.
+
+Scenario 3: Impolite and Unfair
+
+    Robot Type: Fitness Trainer Robot (EE)
+
+    Interaction Situation: The robot responds rudely and does not gather proper input before assigning a workout plan. The user, who is a beginner with knee issues, is forced into a high-intensity routine without adjustments for their limitations, leading to physical strain and discouragement.
+
+    Behavior: Impolite communication, lack of empathy, and unfair treatment by ignoring the user’s fitness needs and limitations.
+
+    Outcome: The user feels physically strained and discouraged, and the workout is ineffective due to the robot's rigid, one-size-fits-all approach.
+
+Scenario 4: Impolite and Fair
+
+    Robot Type: Fitness Trainer Robot (EE)
+
+    Interaction Situation: The robot provides an appropriate workout plan based on the user's input (beginner, low-impact preference) but communicates in a cold, blunt manner without any encouragement or warmth.
+
+    Behavior: The robot’s tone is impolite, but it delivers a fair, tailored workout plan based on the user’s fitness level and preferences.
+
+    Outcome: The user receives a fair workout session but feels uncomfortable due to the robot's impersonal and unfriendly communication.
