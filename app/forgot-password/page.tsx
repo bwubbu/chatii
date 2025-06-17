@@ -47,7 +47,9 @@ export default function ForgotPasswordPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email)
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
       if (error) {
         setError(error.message)
         setIsLoading(false)
@@ -65,7 +67,9 @@ export default function ForgotPasswordPage() {
     setIsLoading(true)
     setError(null)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email)
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
       if (error) {
         setError(error.message)
       }
@@ -178,7 +182,7 @@ export default function ForgotPasswordPage() {
                       <h3 className="text-white font-medium mb-2">What's next?</h3>
                       <ul className="text-gray-400 text-sm space-y-1">
                         <li>• Check your email inbox (and spam folder)</li>
-                        <li>• Click the reset link in the email</li>
+                        <li>• <strong className="text-yellow-400">Important:</strong> Click the reset link in <strong>this same browser</strong></li>
                         <li>• Create a new secure password</li>
                         <li>• Sign in with your new password</li>
                       </ul>

@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronDown, ChevronRight, Search, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { ModelToggle } from "@/components/chat/ModelToggle";
 
 interface Conversation {
   id: string;
@@ -36,10 +37,15 @@ interface ConversationWithPersona {
   created_at: string;
 }
 
-export function ConversationSidebar() {
+interface ConversationSidebarProps {
+  currentModel?: 'gemini' | 'fairness';
+  onModelChange?: (model: 'gemini' | 'fairness') => void;
+  onEndChat?: () => void;
+}
+
+export function ConversationSidebar({ currentModel, onModelChange, onEndChat }: ConversationSidebarProps) {
   const [personaGroups, setPersonaGroups] = useState<PersonaGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -103,12 +109,7 @@ export function ConversationSidebar() {
     });
   };
 
-  const filteredGroups = personaGroups.map(group => ({
-    ...group,
-    conversations: group.conversations.filter(conv =>
-      conv.title.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  })).filter(group => group.conversations.length > 0);
+  const filteredGroups = personaGroups;
 
   const deleteConversation = async (conversationId: string) => {
     const { error } = await supabase
@@ -123,20 +124,32 @@ export function ConversationSidebar() {
 
   return (
     <div className="w-80 h-full border-r border-gray-800 bg-[#171717] flex flex-col">
-      <div className="p-4 border-b border-gray-800">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-[#23232a] text-white border-gray-700"
-          />
+      {/* Controls Section */}
+      {currentModel && onModelChange && onEndChat && (
+        <div className="p-4 border-b border-gray-800 space-y-3">
+          <div>
+            <label className="text-sm font-medium text-gray-300 mb-2 block">AI Model</label>
+            <ModelToggle 
+              currentModel={currentModel}
+              onModelChange={onModelChange}
+            />
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full rounded-full text-white font-medium shadow hover:bg-red-600 transition-colors"
+            onClick={onEndChat}
+          >
+            End Chat
+          </Button>
         </div>
-      </div>
+      )}
+
+
 
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-2">
+          <h3 className="text-sm font-medium text-gray-400 mb-3 px-2">Past Chats</h3>
           {filteredGroups.map(group => (
             <div key={group.id} className="space-y-1">
               <Button

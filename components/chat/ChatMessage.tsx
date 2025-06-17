@@ -8,6 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 
 interface Message {
   id: string;
@@ -20,6 +22,40 @@ interface ChatMessageProps {
   message: Message;
   hideFlag?: boolean;
 }
+
+// Custom markdown components for better styling
+const markdownComponents = {
+  // Style bold text
+  strong: ({ children }: any) => (
+    <strong className="font-semibold text-white">{children}</strong>
+  ),
+  // Style emphasized text
+  em: ({ children }: any) => (
+    <em className="italic text-gray-200">{children}</em>
+  ),
+  // Style paragraphs with proper spacing
+  p: ({ children }: any) => (
+    <p className="mb-2 last:mb-0">{children}</p>
+  ),
+  // Style lists
+  ul: ({ children }: any) => (
+    <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
+  ),
+  ol: ({ children }: any) => (
+    <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
+  ),
+  li: ({ children }: any) => (
+    <li className="text-gray-100">{children}</li>
+  ),
+  // Style inline code
+  code: ({ children }: any) => (
+    <code className="bg-gray-700 text-blue-300 px-1 py-0.5 rounded text-sm">{children}</code>
+  ),
+  // Remove default blockquote styling for simpler look
+  blockquote: ({ children }: any) => (
+    <div className="border-l-2 border-blue-400 pl-3 ml-2 text-gray-200">{children}</div>
+  ),
+};
 
 export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
   const [flagModalOpen, setFlagModalOpen] = useState(false);
@@ -57,13 +93,24 @@ export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
       <div className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
         <div className={`flex flex-col max-w-[80%] ${message.sender === "user" ? "items-end" : "items-start"}`}>
           <div
-            className={`px-4 py-2 rounded-2xl shadow-md break-words ${
+            className={`px-4 py-3 rounded-2xl shadow-md break-words ${
               message.sender === "user"
                 ? "bg-blue-600 text-white rounded-br-none"
                 : "bg-[#23232a] text-gray-100 rounded-bl-none"
             }`}
           >
-            {message.content}
+            {message.sender === "assistant" ? (
+              <div className="prose prose-invert max-w-none">
+                <ReactMarkdown
+                  components={markdownComponents}
+                  rehypePlugins={[rehypeRaw]}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <span className="text-white">{message.content}</span>
+            )}
           </div>
           {!hideFlag && message.sender === "assistant" && (
             <Button
@@ -89,7 +136,7 @@ export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
             </DialogHeader>
             <div className="mb-2">
               <Label>Flagged Response</Label>
-              <div className="bg-[#23232a] text-gray-100 rounded-lg p-3 mt-1 text-sm">
+              <div className="bg-[#23232a] text-gray-100 rounded-lg p-3 mt-1 text-sm max-h-32 overflow-y-auto">
                 {message.content}
               </div>
             </div>

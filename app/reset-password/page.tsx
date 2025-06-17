@@ -28,6 +28,8 @@ export default function ResetPasswordPage() {
   const router = useRouter()
   const token = searchParams.get("token")
   const accessToken = searchParams.get("access_token")
+  const refreshToken = searchParams.get("refresh_token")
+  const type = searchParams.get("type")
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
     texts: ["Create New Password"],
@@ -54,27 +56,55 @@ export default function ResetPasswordPage() {
   })
 
   useEffect(() => {
-    // Validate token on component mount
-    if (!token) {
-      setIsValidToken(false)
-      return
-    }
-
-    // Here you would validate the token with your backend
-    // For demo purposes, we'll simulate validation
-    const validateToken = async () => {
-      try {
-        // await validateResetToken(token)
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        setIsValidToken(true)
-      } catch (error) {
-        setIsValidToken(false)
+    // Check if this is a password recovery request
+    if (type === 'recovery' && accessToken && refreshToken) {
+      // Set the session with the tokens from the URL
+      const setSession = async () => {
+        try {
+          // Clear any existing session first
+          await supabase.auth.signOut()
+          
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          
+          if (error) {
+            console.error('Error setting session:', error)
+            setError(`Session error: ${error.message}`)
+            setIsValidToken(false)
+          } else if (data.user) {
+            // Double-check the user is valid
+            const { data: userData, error: userError } = await supabase.auth.getUser()
+            if (userError || !userData.user) {
+              console.error('Error verifying user:', userError)
+              setError('Unable to verify user identity. Please request a new reset link.')
+              setIsValidToken(false)
+            } else {
+              setIsValidToken(true)
+              setError(null)
+            }
+          } else {
+            setError('Invalid session data received.')
+            setIsValidToken(false)
+          }
+        } catch (error) {
+          console.error('Error setting session:', error)
+          setError('Failed to establish session. Please request a new reset link.')
+          setIsValidToken(false)
+        }
       }
+      setSession()
+    } else if (type === 'recovery') {
+      // Recovery type but missing tokens
+      setError('Incomplete reset link. Please request a new one.')
+      setIsValidToken(false)
+    } else {
+      // No valid recovery parameters found
+      setError('Invalid reset link format. Please request a new one.')
+      setIsValidToken(false)
     }
-
-    validateToken()
-  }, [token])
+  }, [type, accessToken, refreshToken])
 
   useEffect(() => {
     // Calculate password strength
@@ -104,13 +134,15 @@ export default function ResetPasswordPage() {
     }
     setIsLoading(true)
     try {
-      if (!accessToken) {
-        setError("Invalid or expired reset link.")
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError("Invalid or expired reset link. Please request a new one.")
         setIsLoading(false)
         return
       }
-      // Set the access token for this session
-      await supabase.auth.setSession({ access_token: accessToken, refresh_token: accessToken })
+
+      // Update the user's password
       const { error } = await supabase.auth.updateUser({ password })
       if (error) {
         setError(error.message)
@@ -148,10 +180,19 @@ export default function ResetPasswordPage() {
             <div className="mx-auto w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
               <AlertCircle className="w-8 h-8 text-red-500" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Invalid or Expired Link</h2>
-            <p className="text-gray-400 text-sm mb-6">
-              This password reset link is invalid or has expired. Please request a new one.
+            <h2 className="text-2xl font-bold text-white mb-2">Reset Link Issue</h2>
+            <p className="text-gray-400 text-sm mb-4">
+              {error || "This password reset link is invalid or has expired."}
             </p>
+            <div className="bg-[#2C2C2C] border border-gray-600 rounded-lg p-4 mb-6 text-left">
+              <h3 className="text-white font-medium mb-2 text-sm">Common causes:</h3>
+              <ul className="text-gray-400 text-xs space-y-1">
+                <li>• Using the link in a different browser</li>
+                <li>• Link has expired (usually 1 hour)</li>
+                <li>• Link was already used</li>
+                <li>• Browser blocking cookies/storage</li>
+              </ul>
+            </div>
             <Button asChild className="w-full bg-white text-gray-900 hover:bg-gray-100">
               <Link href="/forgot-password">Request New Link</Link>
             </Button>

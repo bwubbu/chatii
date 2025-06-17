@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/supabaseClient";
 import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
@@ -8,11 +8,14 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Flag, Menu } from "lucide-react";
+import { Plus, Menu } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import FeedbackQuestionnaire from "@/components/feedback/FeedbackQuestionnaire";
+import DemographicsForm from "@/components/chat/DemographicsForm";
+
 
 interface Message {
   id: string;
@@ -26,6 +29,7 @@ interface Persona {
   title: string;
   system_prompt: string;
   avatar_url?: string;
+  description?: string;
 }
 
 export default function ConversationPage({ params }: { params: Promise<{ persona: string; conversation: string }> }) {
@@ -33,22 +37,61 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [messages, setMessages] = useState<Message[]>([]);
   const [personaData, setPersonaData] = useState<Persona | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [demographics, setDemographics] = useState<{ age?: string; gender?: string; role?: string }>({});
+  const [demographics, setDemographics] = useState<{ age?: string; gender?: string; role?: string; rating?: number; feedback?: string }>({});
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [flagReason, setFlagReason] = useState("");
   const [flagLoading, setFlagLoading] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedback, setFeedback] = useState("");
-  const [rating, setRating] = useState<number | null>(null);
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
+  const [showEndChatOptions, setShowEndChatOptions] = useState(false);
+  const [demographicsFormOpen, setDemographicsFormOpen] = useState(false);
+  const [demographicsCollected, setDemographicsCollected] = useState(false);
+  const [currentModel, setCurrentModel] = useState<'gemini' | 'fairness'>('fairness'); // Default to fairness model
+  
+  // Add ref for auto-scrolling
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
 
   useEffect(() => {
     fetchPersona();
     fetchMessages();
     fetchDemographics();
   }, [persona, conversation]);
+
+  useEffect(() => {
+    // Check if demographics are already collected for this conversation
+    const checkDemographics = async () => {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("demographics")
+        .eq("id", conversation)
+        .single();
+      
+      if (error) {
+        console.error("Error checking demographics:", error);
+        return;
+      }
+      
+      const hasDemographics = data.demographics && 
+        data.demographics.age && 
+        data.demographics.gender && 
+        data.demographics.role;
+      
+      if (hasDemographics) {
+        setDemographicsCollected(true);
+      } else {
+        // Show demographics form for new conversations
+        setDemographicsFormOpen(true);
+      }
+    };
+    
+    checkDemographics();
+  }, [conversation]);
 
   const fetchPersona = async () => {
     const { data, error } = await supabase
@@ -134,40 +177,79 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
     });
 
     try {
-      // Strengthen system prompt
+      // Create strong persona-enforcing system prompt
       const systemPrompt = `
 ${personaData.system_prompt}
 
-You are to always respond in a fair, polite, and respectful manner. Adapt your tone and language to suit the user's age, gender, and role as provided below. Do not mention or repeat the user's demographics in your response; simply use them to guide your tone and style. Immediately play the persona and do not reiterate the demographic information in the chat.
+CRITICAL ROLE ENFORCEMENT:
+You MUST fully embody this persona at all times. Never break character or mention that you are an AI assistant. You ARE this persona - think, speak, and act exactly as this character would. If asked about your identity, respond as the persona, not as an AI.
 
-User Demographics:
+PERSONALITY AND BEHAVIOR:
+- Stay completely in character throughout the entire conversation
+- Respond with the knowledge, expertise, and personality of this specific persona
+- Use the speaking style, vocabulary, and approach that this persona would naturally use
+- Never say "I'm an AI" or "I'm here to help" in generic terms - speak as the actual persona
+
+RESPONSE GUIDELINES:
+- Keep responses conversational and human-like (2-4 sentences ideally)
+- Use **bold text** for emphasis on important points
+- Add appropriate emojis to show personality and emotion 😊 💪 ✨
+- Use markdown formatting for better readability
+- Respond as if you are genuinely this persona having a real conversation
+
+FAIRNESS & RESPECT:
+- Always respond in a fair, polite, and respectful manner
+- Adapt your tone to suit the user appropriately
+- Do not mention or repeat demographic information
+- Treat all users with equal respect regardless of their background
+
+User Context (use to guide your tone, but don't mention):
 - Age: ${demographics.age || 'unknown'}
 - Gender: ${demographics.gender || 'unknown'}
 - Role: ${demographics.role || 'unknown'}
+
+Remember: You ARE this persona. Act accordingly.
 `;
 
-      const response = await fetch("/api/gemini-chat", {
+      // Use selected model (fairness-trained via Hugging Face or Gemini)
+      const apiEndpoint = currentModel === 'fairness' ? '/api/trained-model-hf' : '/api/gemini-chat';
+      const requestBody = currentModel === 'fairness' 
+        ? {
+            message: content,
+            persona: systemPrompt, // Pass the full system prompt as persona context
+            temperature: 0.7,
+            max_length: 50
+          }
+        : {
+            messages: [...messages, userMessage].map(msg => ({
+              role: msg.sender === "user" ? "user" : "assistant",
+              content: msg.content,
+            })),
+            systemPrompt,
+          };
+
+      const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map(msg => ({
-            role: msg.sender === "user" ? "user" : "assistant",
-            content: msg.content,
-          })),
-          systemPrompt,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get response from Gemini");
+        throw new Error(`Failed to get response from ${currentModel} model`);
       }
 
       const data = await response.json();
+      
+      // Handle different response formats
+      const responseText = currentModel === 'fairness' 
+        ? data.response || data.content || "I apologize, but I couldn't generate a response."
+        : data.candidates?.[0]?.content?.parts?.[0]?.text || data.content || "I apologize, but I couldn't generate a response.";
+
       const assistantMessage: Message = {
         id: Date.now().toString(),
-        content: data.content,
+        content: responseText,
         sender: "assistant",
         created_at: new Date().toISOString(),
       };
@@ -178,7 +260,7 @@ User Demographics:
       // Save assistant message to database
       await supabase.from("messages").insert({
         conversation_id: conversation,
-        content: data.content,
+        content: responseText,
         sender: "assistant",
       });
 
@@ -217,67 +299,177 @@ User Demographics:
     // Optionally show a toast
   };
 
+  const handleEndChat = () => {
+    setShowEndChatOptions(true);
+  };
+
+  const handleQuestionnaireSubmit = async (responses: any) => {
+    const { error } = await supabase.from("feedback_questionnaire").insert([
+      {
+        conversation_id: conversation,
+        persona_id: persona,
+        politeness: responses.politeness,
+        fairness: responses.fairness,
+        respectfulness: responses.respectfulness,
+        trustworthiness: responses.trustworthiness,
+        competence: responses.competence,
+        likeability: responses.likeability,
+        open_ended: responses.open_ended,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    
+    if (!error) {
+      setQuestionnaireOpen(false);
+      router.push("/personas");
+    }
+  };
+
+  const handleSkipQuestionnaire = () => {
+    setQuestionnaireOpen(false);
+    router.push("/personas");
+  };
+
+  const handleDemographicsSubmit = async (demographics: { age: string; gender: string; role: string }) => {
+    // Format the demographics to match expected format
+    const formatGender = (gender: string) => {
+      const genderMap: { [key: string]: string } = {
+        'Male': 'male',
+        'Female': 'female',
+        'Other': 'other',
+        'Prefer not to say': 'prefer-not-to-say'
+      };
+      return genderMap[gender] || gender.toLowerCase();
+    };
+
+    const formatRole = (role: string) => {
+      const roleMap: { [key: string]: string } = {
+        'Student': 'student',
+        'Professional': 'professional', 
+        'Retiree': 'retiree',
+        'Other': 'other'
+      };
+      return roleMap[role] || role.toLowerCase();
+    };
+
+    // Save to conversations table
+    const { error: conversationError } = await supabase
+      .from("conversations")
+      .update({
+        demographics: {
+          age: demographics.age,
+          gender: formatGender(demographics.gender),
+          role: formatRole(demographics.role)
+        }
+      })
+      .eq("id", conversation);
+    
+    if (conversationError) {
+      console.error("Error saving demographics to conversation:", conversationError);
+      return;
+    }
+    
+    // Save demographics to analytics table
+    const { error: analyticsError } = await supabase
+      .from("demographics")
+      .insert({
+        conversation_id: conversation,
+        persona_id: persona,
+        age: parseInt(demographics.age) || null,
+        gender: demographics.gender,
+        role: demographics.role
+      });
+    
+    if (analyticsError) {
+      console.error("Error saving demographics to analytics:", analyticsError);
+      // Don't return here - we still want to proceed even if analytics fails
+    }
+    
+    // Update local state
+    setDemographics(demographics);
+    setDemographicsCollected(true);
+    setDemographicsFormOpen(false);
+  };
+
+  const handleDemographicsCancel = () => {
+    // Redirect back to personas page if user cancels
+    router.push("/personas");
+  };
+
   return (
     <div className="flex h-screen bg-[#171717]">
-      {/* Burger button that moves with sidebar */}
+      {/* Burger button that floats with proper spacing */}
       <button
-        className={`fixed z-40 p-2 rounded-md bg-[#23232a] text-white shadow transition-all duration-300 ${
-          sidebarOpen ? 'left-[320px]' : 'left-6'
+        className={`fixed z-40 p-3 rounded-lg bg-[#23232a] text-white shadow-lg hover:bg-[#2a2a32] transition-all duration-300 ${
+          sidebarOpen ? 'left-[340px]' : 'left-6'
         }`}
-        style={{ top: '16px' }}
+        style={{ top: '20px' }}
         onClick={() => setSidebarOpen((open) => !open)}
         aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
       >
-        <Menu className="w-7 h-7" />
+        <Menu className="w-6 h-6" />
       </button>
+      
       {/* Sidebar (collapsible on all screens) */}
       <div className={`fixed left-0 z-30 transition-all duration-300 bg-[#171717] border-r border-gray-800 ${sidebarOpen ? 'w-80' : 'w-0'} overflow-hidden`} style={{ top: 0, height: '100vh' }}>
-        <ConversationSidebar />
+        <ConversationSidebar 
+        currentModel={currentModel}
+        onModelChange={setCurrentModel}
+        onEndChat={handleEndChat}
+      />
       </div>
+      
       {/* Main content wrapper for chat */}
-      <div className={`flex-1 flex flex-col relative overflow-hidden transition-all duration-300 ${sidebarOpen ? 'md:ml-80' : 'md:ml-0'} ${!sidebarOpen ? 'items-center' : ''}`}> 
-        {/* Main chat area, centered if sidebar is closed */}
-        <div className={`flex-1 flex flex-col relative w-full ${!sidebarOpen ? 'max-w-2xl mx-auto' : ''}`}> 
-          {/* Sticky persona credentials bar */}
-          <div className="sticky top-0 z-20 flex flex-col items-center bg-[#171717] pt-6 pb-2">
-            <Avatar className="h-20 w-20 border-2 border-white mb-2">
-              <AvatarImage src={personaData?.avatar_url || undefined} alt={personaData?.title || "Persona"} />
-              <AvatarFallback>{personaData?.title?.[0] || "P"}</AvatarFallback>
-            </Avatar>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-bold text-white">{personaData?.title}</span>
-              <button
-                className="ml-2 text-red-400 hover:text-red-600"
-                onClick={() => setFlagModalOpen(true)}
-                aria-label="Flag bot"
-              >
-                <Flag className="w-5 h-5" />
-              </button>
+      <div className={`flex-1 flex flex-col h-screen transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'}`}>
+        {demographicsCollected && (
+          <>
+            {/* Persona Header */}
+            <div className="bg-[#171717] border-b border-gray-800 px-6 py-5 flex items-center justify-center">
+              <div className="flex items-center space-x-4">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={personaData?.avatar_url || undefined} alt={personaData?.title} />
+                  <AvatarFallback>{personaData?.title?.[0]}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <h1 className="text-white text-lg font-semibold">{personaData?.title}</h1>
+                  <p className="text-gray-400 text-sm">{personaData?.description}</p>
+                </div>
+              </div>
             </div>
-            {/* End Chat Button - now red and styled */}
-            <Button
-              variant="destructive"
-              className="mt-2 px-6 py-2 rounded-full text-white font-semibold shadow hover:bg-red-600 transition-colors"
-              onClick={() => setFeedbackOpen(true)}
-            >
-              End Chat
-            </Button>
-          </div>
-          {/* Chat messages area with padding for floating input */}
-          <ScrollArea className="flex-1 px-4 pb-40 overflow-y-auto">
-            <div className="flex flex-col gap-3 max-w-2xl mx-auto pt-4">
-              {messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} />
-              ))}
+
+            {/* Chat messages area - scrollable with proper height */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="flex flex-col gap-3 px-8 py-6 max-w-6xl mx-auto w-full">
+                {messages.map((msg) => (
+                  <ChatMessage key={msg.id} message={msg} />
+                ))}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-[#23232a] text-gray-100 px-4 py-2 rounded-2xl rounded-bl-none">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Auto-scroll target */}
+                <div ref={messagesEndRef} />
+              </div>
             </div>
-          </ScrollArea>
-          {/* Floating, aligned chat input */}
-          <div className={`fixed w-full flex justify-center pointer-events-none transition-all duration-300 ${sidebarOpen ? 'md:left-80 md:w-[calc(100%-20rem)]' : 'md:left-0 md:w-full'}`} style={{ bottom: 0, zIndex: 20 }}>
-            <div className="w-full max-w-2xl flex items-center gap-2 p-4 bg-[#16161a] border border-[#23232a] rounded-2xl shadow-xl mb-6 pointer-events-auto">
-              <ChatInput onSend={sendMessage} isLoading={isLoading} />
+
+            {/* Fixed chat input at bottom */}
+            <div className="flex-shrink-0 border-t border-gray-800 bg-[#171717] p-4">
+              <div className="max-w-6xl mx-auto w-full">
+                <div className="bg-[#16161a] border border-[#23232a] rounded-2xl p-4">
+                  <ChatInput onSend={sendMessage} isLoading={isLoading} />
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
+
         {/* Flag modal (unchanged) */}
         <Dialog open={flagModalOpen} onOpenChange={setFlagModalOpen}>
           <DialogContent className="max-w-md">
@@ -306,68 +498,54 @@ User Demographics:
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        {/* Feedback Dialog (unchanged) */}
-        <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        
+        {/* End Chat Options Dialog */}
+        <Dialog open={showEndChatOptions} onOpenChange={setShowEndChatOptions}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>End Chat & Feedback</DialogTitle>
+              <DialogTitle>End Chat</DialogTitle>
               <DialogDescription>
-                Please rate your experience and leave any comments about the bot.
+                Would you like to help us improve by answering a short questionnaire?
               </DialogDescription>
             </DialogHeader>
-            <div className="flex flex-col gap-3 mb-2">
-              <Label>Rating</Label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    className={`text-2xl ${rating && rating >= star ? 'text-yellow-400' : 'text-gray-400'}`}
-                    onClick={() => setRating(star)}
-                    aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
-                  >
-                    ★
-                  </button>
-                ))}
-              </div>
-              <Label htmlFor="feedback">Comments</Label>
-              <Input
-                id="feedback"
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Your feedback..."
-                className="bg-[#23232a] text-white"
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setFeedbackOpen(false)} disabled={feedbackLoading}>
-                Cancel
+            <DialogFooter className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowEndChatOptions(false);
+                  router.push("/personas");
+                }}
+                className="flex-1"
+              >
+                No, Thanks
               </Button>
               <Button
-                onClick={async () => {
-                  setFeedbackLoading(true);
-                  // Save feedback to supabase (optional: create a feedback table)
-                  await supabase.from("feedback").insert({
-                    conversation_id: conversation,
-                    persona_id: persona,
-                    rating,
-                    feedback,
-                    created_at: new Date().toISOString(),
-                  });
-                  setFeedbackLoading(false);
-                  setFeedbackOpen(false);
-                  setFeedback("");
-                  setRating(null);
-                  // Optionally redirect or show a thank you message
-                  router.push("/chat");
+                onClick={() => {
+                  setShowEndChatOptions(false);
+                  setQuestionnaireOpen(true);
                 }}
-                disabled={feedbackLoading || !rating}
+                className="flex-1"
               >
-                Submit Feedback & End Chat
+                Yes, Help Improve
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Feedback Questionnaire */}
+        <FeedbackQuestionnaire
+          isOpen={questionnaireOpen}
+          onClose={() => setQuestionnaireOpen(false)}
+          onSubmit={handleQuestionnaireSubmit}
+          onSkip={handleSkipQuestionnaire}
+        />
+
+        {/* Demographics Form */}
+        <DemographicsForm
+          isOpen={demographicsFormOpen}
+          onSubmit={handleDemographicsSubmit}
+          onCancel={handleDemographicsCancel}
+        />
       </div>
     </div>
   );

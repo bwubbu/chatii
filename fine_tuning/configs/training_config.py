@@ -4,8 +4,8 @@ from typing import Optional
 @dataclass
 class TrainingConfig:
     # Model configuration
-    model_name: str = "tiiuae/falcon-7b"  # Base model to fine-tune
-    output_dir: str = "fine_tuning/outputs"
+    model_name: str = "mistralai/Mistral-7B-Instruct-v0.2"  # Base model to fine-tune
+    output_dir: str = "mistral_7b_fairness_model"
     
     # Training hyperparameters
     learning_rate: float = 2e-5
@@ -27,11 +27,11 @@ class TrainingConfig:
     load_in_4bit: bool = True   # Enabled 4-bit quantization
     
     # Data configuration
-    train_file: str = "fine_tuning/data/train.jsonl"
+    train_file: str = "fine_tuning/data/fairness_politeness_training.jsonl"
     validation_file: Optional[str] = None
     max_seq_length: int = 1024  # Reduced sequence length to save memory
     
     def __post_init__(self):
         if self.target_modules is None:
-            # Falcon specific target modules
-            self.target_modules = ["query_key_value", "dense", "dense_h_to_4h", "dense_4h_to_h"] 
+            # Mistral specific target modules
+            self.target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"] 
