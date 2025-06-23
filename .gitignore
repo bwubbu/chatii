@@ -1,0 +1,96 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# AI Models and Training Files
+/Lora Model/
+/fine_tuning/scripts/miniconda.exe
+*.safetensors
+*.bin
+*.pth
+*.pt
+*.ckpt
+*.model
+*.weights
+
+# Training Data (large files)
+/fine_tuning/data/*.jsonl
+/fine_tuning/data/*.json
+/fine_tuning/data/*.txt
+/fine_tuning/data/*.csv
+
+# Model Outputs and Logs
+/fine_tuning/outputs/
+/fine_tuning/logs/
+/fine_tuning/runs/
+/fine_tuning/checkpoints/
+/fine_tuning/cache/
+
+# Python Cache and Virtual Environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Large executables and installers
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.deb
+*.rpm
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
