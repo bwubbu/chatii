@@ -12,19 +12,30 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Mail, Lock, User } from "lucide-react"
 import { useTypingAnimation } from "@/hooks/use-typing-animation"
 import { supabase } from "@/supabaseClient"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export default function SignUpPage() {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [nationality, setNationality] = useState<string>("")
+  const [age, setAge] = useState<string>("")
+  const [race, setRace] = useState<string>("")
+  const [gender, setGender] = useState<string>("")
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
-    texts: ["Welcome to Chatii"],
+    texts: ["Welcome to RamahAI"],
     typeSpeed: 80,
     loop: false,
     cursorStyle: "hard",
@@ -52,6 +63,20 @@ export default function SignUpPage() {
     e.preventDefault()
     setError(null)
     setSuccess(null)
+    
+    // Validate email
+    if (!email || email.trim() === "") {
+      setError("Please enter an email address.")
+      return
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email.trim())) {
+      setError("Please enter a valid email address.")
+      return
+    }
+    
     if (password !== confirmPassword) {
       setError("Passwords do not match!")
       return
@@ -60,16 +85,59 @@ export default function SignUpPage() {
       setError("You must agree to the terms.")
       return
     }
+    if (!nationality || !age || !race || !gender) {
+      setError("Please fill in all demographic information (Nationality, Age, Race, and Gender).")
+      return
+    }
+    const ageNum = parseInt(age)
+    if (isNaN(ageNum) || ageNum <= 0 || ageNum >= 150) {
+      setError("Please enter a valid age.")
+      return
+    }
     setLoading(true)
-    const { error } = await supabase.auth.signUp({
-      email,
+    const trimmedEmail = email.trim()
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email: trimmedEmail,
       password,
       options: {
         data: { username },
       },
     })
-    if (error) {
-      setError(error.message)
+    if (signUpError) {
+      setError(signUpError.message)
+      setLoading(false)
+      return
+    }
+    
+    // If signup successful, create user profile via API route
+    if (signUpData.user) {
+      try {
+        const response = await fetch("/api/user-profiles", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: signUpData.user.id,
+            nationality,
+            age: ageNum,
+            race,
+            gender,
+          }),
+        })
+
+        const result = await response.json()
+
+        if (!response.ok) {
+          console.error("Error creating user profile:", result)
+          setError(`Account created but failed to save profile: ${result.error || result.details || 'Unknown error'}. Please contact support.`)
+        } else {
+          setSuccess("Check your email for a confirmation link!")
+        }
+      } catch (apiError: any) {
+        console.error("Error calling profile API:", apiError)
+        setError("Account created but failed to save profile. Please contact support.")
+      }
     } else {
       setSuccess("Check your email for a confirmation link!")
     }
@@ -92,7 +160,7 @@ export default function SignUpPage() {
       {/* Left Side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 text-white">
         <div>
-          <h1 className="text-2xl font-bold mb-16">Chatii</h1>
+          <h1 className="text-2xl font-bold mb-16">RamahAI</h1>
           <div className="space-y-6">
             <h2 className="text-4xl font-bold leading-tight">
               {welcomeText}
@@ -111,7 +179,7 @@ export default function SignUpPage() {
         <div className="w-full max-w-md space-y-8">
           {/* Mobile Header */}
           <div className="lg:hidden text-center">
-            <h1 className="text-2xl font-bold text-white mb-8">Chatii</h1>
+            <h1 className="text-2xl font-bold text-white mb-8">RamahAI</h1>
           </div>
 
           <Card className="bg-[#0F0F0F] border-gray-600 shadow-2xl shadow-black/50">
@@ -121,7 +189,7 @@ export default function SignUpPage() {
                 <p className="text-gray-400 text-sm">
                   Create an account
                   <br />
-                  to Chatii to its fullest!
+                  to RamahAI to its fullest!
                 </p>
               </div>
 
@@ -204,6 +272,93 @@ export default function SignUpPage() {
                       required
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nationality" className="text-gray-300 text-sm">
+                    Nationality
+                  </Label>
+                  <Select value={nationality} onValueChange={(value) => {
+                    setNationality(value);
+                    setRace(""); // Reset race when nationality changes
+                  }} required>
+                    <SelectTrigger className="bg-[#2C2C2C] border-gray-600 text-white focus:border-gray-500">
+                      <SelectValue placeholder="Select your nationality" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#2C2C2C] border-gray-600 text-white">
+                      <SelectItem value="Malaysia">Malaysia</SelectItem>
+                      <SelectItem value="Sweden">Sweden</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="age" className="text-gray-300 text-sm">
+                    Age
+                  </Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    placeholder="Enter your age"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    className="bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                    min="1"
+                    max="149"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="race" className="text-gray-300 text-sm">
+                    Race
+                  </Label>
+                  <Select value={race} onValueChange={setRace} required>
+                    <SelectTrigger className="bg-[#2C2C2C] border-gray-600 text-white focus:border-gray-500">
+                      <SelectValue placeholder="Select your race" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#2C2C2C] border-gray-600 text-white">
+                      {nationality === "Malaysia" ? (
+                        <>
+                          <SelectItem value="Malay">Malay</SelectItem>
+                          <SelectItem value="Malaysian Chinese">Malaysian Chinese</SelectItem>
+                          <SelectItem value="Malaysian Indian">Malaysian Indian</SelectItem>
+                        </>
+                      ) : nationality === "Sweden" ? (
+                        <SelectItem value="Swedish">Swedish</SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="Malay">Malay</SelectItem>
+                          <SelectItem value="Malaysian Chinese">Malaysian Chinese</SelectItem>
+                          <SelectItem value="Malaysian Indian">Malaysian Indian</SelectItem>
+                          <SelectItem value="Swedish">Swedish</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="gender" className="text-gray-300 text-sm">
+                    Gender
+                  </Label>
+                  <Select value={gender} onValueChange={setGender} required>
+                    <SelectTrigger className="bg-[#2C2C2C] border-gray-600 text-white focus:border-gray-500">
+                      <SelectValue placeholder="Select your gender" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#2C2C2C] border-gray-600 text-white">
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    <strong className="text-blue-400">Privacy & Data Usage:</strong> The demographic information you provide is used solely to personalize your AI chat experience. We do not use this data for malicious purposes, advertising, or sharing with third parties. Your information helps the AI adapt its communication style to better serve you.
+                  </p>
                 </div>
 
                 <div className="flex items-start space-x-2">

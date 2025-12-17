@@ -27,11 +27,11 @@ export async function sendPasswordResetEmail(email: string) {
     // Example email content that would be sent:
     const emailContent = {
       to: email,
-      subject: "Reset Your Chatii Password",
+      subject: "Reset Your RamahAI Password",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333;">Reset Your Password</h2>
-          <p>You requested a password reset for your Chatii account.</p>
+          <p>You requested a password reset for your RamahAI account.</p>
           <p>Click the button below to reset your password:</p>
           <a href="${resetUrl}" style="display: inline-block; background-color: #000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 16px 0;">Reset Password</a>
           <p>Or copy and paste this link into your browser:</p>
@@ -39,7 +39,7 @@ export async function sendPasswordResetEmail(email: string) {
           <p><strong>This link will expire in 1 hour.</strong></p>
           <p>If you didn't request this password reset, please ignore this email.</p>
           <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px;">This email was sent by Chatii. If you have any questions, please contact our support team.</p>
+          <p style="color: #666; font-size: 12px;">This email was sent by RamahAI. If you have any questions, please contact our support team.</p>
         </div>
       `,
     }

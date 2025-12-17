@@ -15,8 +15,13 @@ import uvicorn
 from typing import Optional
 
 # Pydantic models for request/response validation
+class MessageHistory(BaseModel):
+    role: str
+    content: str
+
 class ChatRequest(BaseModel):
     message: str
+    conversation_history: Optional[list[MessageHistory]] = None
     system_prompt: Optional[str] = None
     max_tokens: Optional[int] = 200
     temperature: Optional[float] = 0.7
@@ -46,21 +51,41 @@ class OllamaChatbot:
 
 Be polite, considerate, and treat everyone with equal respect. If you're unsure about something, it's okay to say you don't know rather than making assumptions."""
     
-    async def generate_response_async(self, prompt: str, system_prompt: str = None, max_tokens: int = 200, temperature: float = 0.7) -> str:
+    async def generate_response_async(self, prompt: str, conversation_history: list = None, system_prompt: str = None, max_tokens: int = 200, temperature: float = 0.7) -> str:
         """
-        Generate response using Ollama API (async version)
+        Generate response using Ollama API (async version) with conversation history support
         """
-        url = f"{self.base_url}/api/generate"
+        url = f"{self.base_url}/api/chat"
         
         # Use custom system prompt if provided, otherwise use default
         system_message = system_prompt if system_prompt else self.system_prompt
         
-        # Format the prompt with system message
-        full_prompt = f"System: {system_message}\n\nUser: {prompt}\n\nAssistant:"
+        # Build messages array for chat API
+        messages = []
+        
+        # Add system message
+        messages.append({
+            "role": "system",
+            "content": system_message
+        })
+        
+        # Add conversation history if provided
+        if conversation_history:
+            for msg in conversation_history:
+                messages.append({
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", "")
+                })
+        
+        # Add current user message
+        messages.append({
+            "role": "user",
+            "content": prompt
+        })
         
         data = {
             "model": self.model_name,
-            "prompt": full_prompt,
+            "messages": messages,
             "stream": False,
             "options": {
                 "temperature": temperature,
@@ -75,9 +100,13 @@ Be polite, considerate, and treat everyone with equal respect. If you're unsure 
                 async with session.post(url, json=data, timeout=aiohttp.ClientTimeout(total=60)) as response:
                     if response.status == 200:
                         result = await response.json()
+                        # Handle both /api/chat and /api/generate response formats
+                        if 'message' in result:
+                            return result['message'].get('content', 'Sorry, I could not generate a response.')
                         return result.get('response', 'Sorry, I could not generate a response.')
                     else:
-                        return f"Error: HTTP {response.status}"
+                        error_text = await response.text()
+                        return f"Error: HTTP {response.status} - {error_text}"
                         
         except aiohttp.ClientError as e:
             return f"Error connecting to Ollama: {e}"
@@ -130,16 +159,23 @@ async def health_check():
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
-    Chat endpoint with automatic request validation
+    Chat endpoint with automatic request validation and conversation history support
     
     - **message**: The user's message to send to the chatbot
+    - **conversation_history**: Previous messages in the conversation (optional)
     - **max_tokens**: Maximum number of tokens to generate (default: 200)
     - **temperature**: Creativity level from 0.0 to 1.0 (default: 0.7)
     """
     try:
-        # Generate response using async method
+        # Convert conversation history if provided
+        history = None
+        if request.conversation_history:
+            history = [{"role": msg.role, "content": msg.content} for msg in request.conversation_history]
+        
+        # Generate response using async method with conversation history
         response = await chatbot.generate_response_async(
             request.message,
+            conversation_history=history,
             system_prompt=request.system_prompt,
             max_tokens=request.max_tokens, 
             temperature=request.temperature

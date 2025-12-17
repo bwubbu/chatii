@@ -6,7 +6,12 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Shield, Sparkles, Users } from "lucide-react";
+import { MessageCircle, Shield, Sparkles, Users, Clock, ChevronDown, ChevronUp, Mail, CheckCircle } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Persona {
   id: string;
@@ -16,14 +21,34 @@ interface Persona {
   category?: string;
 }
 
+interface Conversation {
+  id: string;
+  title: string;
+  last_message_at: string;
+  created_at: string;
+}
+
 export default function PersonasPage() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingConversation, setCreatingConversation] = useState<string | null>(null);
+  const [pastConversations, setPastConversations] = useState<{ [personaId: string]: Conversation[] }>({});
+  const [expandedPersonas, setExpandedPersonas] = useState<Set<string>>(new Set());
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [requestName, setRequestName] = useState("");
+  const [requestDescription, setRequestDescription] = useState("");
+  const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchPersonas();
   }, []);
+
+  useEffect(() => {
+    if (personas.length > 0) {
+      fetchPastConversations();
+    }
+  }, [personas]);
 
   const fetchPersonas = async () => {
     const { data, error } = await supabase
@@ -37,6 +62,61 @@ export default function PersonasPage() {
       setPersonas(data || []);
     }
     setLoading(false);
+  };
+
+  const fetchPastConversations = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: conversations, error } = await supabase
+        .from("conversations")
+        .select("id, title, persona_id, last_message_at, created_at")
+        .eq("user_id", user.id)
+        .order("last_message_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching conversations:", error);
+        return;
+      }
+
+      // Group conversations by persona_id and limit to 5 most recent per persona
+      const grouped: { [personaId: string]: Conversation[] } = {};
+      const personaCounts: { [personaId: string]: number } = {};
+      
+      conversations?.forEach((conv) => {
+        if (!grouped[conv.persona_id]) {
+          grouped[conv.persona_id] = [];
+          personaCounts[conv.persona_id] = 0;
+        }
+        // Only add if we haven't reached the limit (5 most recent)
+        if (personaCounts[conv.persona_id] < 5) {
+          grouped[conv.persona_id].push({
+            id: conv.id,
+            title: conv.title,
+            last_message_at: conv.last_message_at,
+            created_at: conv.created_at,
+          });
+          personaCounts[conv.persona_id]++;
+        }
+      });
+
+      setPastConversations(grouped);
+    } catch (error) {
+      console.error("Error fetching past conversations:", error);
+    }
+  };
+
+  const togglePersonaExpanded = (personaId: string) => {
+    setExpandedPersonas((prev) => {
+      const next = new Set(prev);
+      if (next.has(personaId)) {
+        next.delete(personaId);
+      } else {
+        next.add(personaId);
+      }
+      return next;
+    });
   };
 
   const createNewConversation = async (personaId: string) => {
@@ -77,6 +157,8 @@ export default function PersonasPage() {
         return null;
       }
 
+      // Refresh past conversations after creating a new one
+      await fetchPastConversations();
       return data;
     } catch (err) {
       console.error("Unexpected error:", err);
@@ -111,11 +193,10 @@ export default function PersonasPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1a1a1f] p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-white">Loading personas...</div>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-[#0f0f10] via-[#1a1a1f] to-[#23232a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+          <p className="mt-4 text-gray-400">Loading personas...</p>
         </div>
       </div>
     );
@@ -198,42 +279,235 @@ export default function PersonasPage() {
                   </CardDescription>
                 </CardContent>
 
-                <CardFooter>
-                                      <Button 
-                     className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-                     onClick={async () => {
-                       const conversation = await createNewConversation(persona.id);
-                       if (conversation) {
-                         window.location.href = `/chat/${persona.id}/${conversation.id}`;
-                       }
-                     }}
-                     disabled={creatingConversation === persona.id}
-                   >
-                     <MessageCircle className="w-4 h-4 mr-2" />
-                     {creatingConversation === persona.id ? "Creating..." : "Start Conversation"}
-                   </Button>
+                <CardFooter className="flex flex-col gap-2">
+                  {/* Past Conversations Section */}
+                  {pastConversations[persona.id] && pastConversations[persona.id].length > 0 && (
+                    <div className="w-full">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-between bg-[#2a2a2f] border-gray-600 text-gray-300 hover:bg-[#333338] hover:text-white"
+                        onClick={() => togglePersonaExpanded(persona.id)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          <span>Past Chats ({pastConversations[persona.id].length})</span>
+                        </div>
+                        {expandedPersonas.has(persona.id) ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </Button>
+                      
+                      {expandedPersonas.has(persona.id) && (
+                        <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                          {pastConversations[persona.id].map((conv) => (
+                            <Link
+                              key={conv.id}
+                              href={`/chat/${persona.id}/${conv.id}`}
+                              className="block"
+                            >
+                              <div className="p-2 rounded-md bg-[#2a2a2f] hover:bg-[#333338] border border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-white truncate">
+                                      {conv.title}
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                      {formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true })}
+                                    </p>
+                                  </div>
+                                  <MessageCircle className="w-4 h-4 text-gray-500 ml-2 flex-shrink-0" />
+                                </div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Start New Conversation Button */}
+                  <Button 
+                    className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                    onClick={async () => {
+                      const conversation = await createNewConversation(persona.id);
+                      if (conversation) {
+                        window.location.href = `/chat/${persona.id}/${conversation.id}`;
+                      }
+                    }}
+                    disabled={creatingConversation === persona.id}
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    {creatingConversation === persona.id ? "Creating..." : "Start New Conversation"}
+                  </Button>
                 </CardFooter>
               </Card>
             ))}
           </div>
         )}
 
-        {/* Footer CTA */}
+        {/* Request Persona CTA */}
         <div className="text-center mt-16">
           <Card className="bg-gradient-to-r from-green-900/50 to-blue-900/50 border-green-500/50">
             <CardContent className="py-8">
-              <h3 className="text-2xl font-bold text-white mb-4">Experience Fair AI Conversations</h3>
+              <h3 className="text-2xl font-bold text-white mb-4">Want to request a persona?</h3>
               <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
-                Our personas are trained with advanced fairness techniques to ensure every conversation is respectful, 
-                unbiased, and tailored to your needs while maintaining ethical standards.
+                Have an idea for a new AI persona? Let us know what you'd like to see and we'll consider adding it to our collection.
               </p>
-              <div className="flex items-center justify-center gap-2">
-                <Shield className="w-5 h-5 text-green-400" />
-                <span className="text-green-400 font-medium">Powered by Fairness-First AI</span>
-              </div>
+              <Button 
+                onClick={() => setRequestDialogOpen(true)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Contact Admin
+              </Button>
             </CardContent>
           </Card>
         </div>
+
+        {/* Persona Request Dialog */}
+        <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
+          <DialogContent className="bg-[#23232a] border-gray-600 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-white">Request a New Persona</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Tell us about the persona you'd like to see. We'll review your request and get back to you.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!requestName.trim() || !requestDescription.trim()) {
+                alert("Please fill in both the persona name and description.");
+                return;
+              }
+
+              setSubmittingRequest(true);
+              try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                  alert("You need to be logged in to submit a request.");
+                  setRequestDialogOpen(false);
+                  return;
+                }
+
+                const { error } = await supabase
+                  .from("persona_requests")
+                  .insert({
+                    user_id: user.id,
+                    persona_name: requestName.trim(),
+                    description: requestDescription.trim(),
+                    status: "pending"
+                  });
+
+                if (error) {
+                  console.error("Error submitting request:", error);
+                  alert("Failed to submit request. Please try again.");
+                } else {
+                  setRequestName("");
+                  setRequestDescription("");
+                  setRequestDialogOpen(false);
+                  setSuccessDialogOpen(true);
+                }
+              } catch (err) {
+                console.error("Unexpected error:", err);
+                alert("An unexpected error occurred. Please try again.");
+              } finally {
+                setSubmittingRequest(false);
+              }
+            }}>
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label htmlFor="persona-name" className="text-gray-300">Persona Name</Label>
+                  <Input
+                    id="persona-name"
+                    value={requestName}
+                    onChange={(e) => setRequestName(e.target.value)}
+                    placeholder="e.g., Customer Service Representative"
+                    className="bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500 mt-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="persona-description" className="text-gray-300">Description</Label>
+                  <Textarea
+                    id="persona-description"
+                    value={requestDescription}
+                    onChange={(e) => setRequestDescription(e.target.value)}
+                    placeholder="Describe what this persona should do, its characteristics, and how it should interact with users..."
+                    className="bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500 mt-2 min-h-[120px]"
+                    required
+                  />
+                  <div className="mt-3 p-3 bg-[#2C2C2C] border border-gray-600 rounded-md">
+                    <p className="text-xs font-semibold text-gray-300 mb-2">💡 Writing Guide:</p>
+                    <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
+                      <li><strong>Role & Purpose:</strong> What is this persona's job or role? (e.g., "A friendly customer service agent who helps resolve issues")</li>
+                      <li><strong>Personality Traits:</strong> How should they behave? (e.g., "patient, empathetic, professional")</li>
+                      <li><strong>Communication Style:</strong> How should they talk? (e.g., "uses clear, simple language" or "formal and respectful")</li>
+                      <li><strong>Use Cases:</strong> What scenarios will users interact with this persona? (e.g., "helping customers with product questions")</li>
+                    </ul>
+                    <p className="text-xs text-gray-500 mt-2 italic">Example: "A patient and empathetic customer service representative who helps users resolve product issues. They communicate clearly, use simple language, and always maintain a professional yet friendly tone. Ideal for handling complaints, answering questions, and providing technical support."</p>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setRequestDialogOpen(false);
+                    setRequestName("");
+                    setRequestDescription("");
+                  }}
+                  className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submittingRequest}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {submittingRequest ? "Submitting..." : "Submit Request"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Success Dialog with Animated Checkmark */}
+        <Dialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
+          <DialogContent className="bg-[#23232a] border-gray-600 text-white max-w-md">
+            <div className="flex flex-col items-center justify-center py-6">
+              {/* Animated Checkmark */}
+              <div className="relative mb-4">
+                <div className="w-20 h-20 rounded-full bg-green-600/20 flex items-center justify-center relative overflow-visible">
+                  <CheckCircle 
+                    className="w-12 h-12 text-green-500 animate-in zoom-in duration-500"
+                    strokeWidth={2.5}
+                  />
+                  {/* Ripple animation circles */}
+                  <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping" style={{ animationDelay: "0s" }}></div>
+                  <div className="absolute inset-0 rounded-full bg-green-500/10 animate-ping" style={{ animationDelay: "0.3s" }}></div>
+                </div>
+              </div>
+              
+              <DialogTitle className="text-2xl font-bold text-white text-center mb-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                Successfully submitted!
+              </DialogTitle>
+              <DialogDescription className="text-gray-400 text-center animate-in fade-in slide-in-from-bottom-2 duration-700">
+                We'll review your request and get back to you soon.
+              </DialogDescription>
+              
+              <Button
+                onClick={() => setSuccessDialogOpen(false)}
+                className="mt-6 bg-green-600 hover:bg-green-700 text-white animate-in fade-in duration-700"
+              >
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

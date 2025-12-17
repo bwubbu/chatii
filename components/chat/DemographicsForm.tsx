@@ -9,29 +9,27 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface DemographicsFormProps {
   isOpen: boolean;
-  onSubmit: (demographics: { age: string; gender: string; role: string }) => void;
+  onSubmit: (demographics: { age?: string; gender: string }) => void;
   onCancel: () => void;
+  defaultAge?: number;
 }
 
-export default function DemographicsForm({ isOpen, onSubmit, onCancel }: DemographicsFormProps) {
-  const [age, setAge] = useState("");
+export default function DemographicsForm({ isOpen, onSubmit, onCancel, defaultAge }: DemographicsFormProps) {
   const [gender, setGender] = useState("");
-  const [role, setRole] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ age, gender, role });
+    onSubmit({ 
+      age: defaultAge?.toString(), 
+      gender 
+    });
     // Reset form
-    setAge("");
     setGender("");
-    setRole("");
   };
 
   const handleCancel = () => {
     // Reset form
-    setAge("");
     setGender("");
-    setRole("");
     onCancel();
   };
 
@@ -41,21 +39,17 @@ export default function DemographicsForm({ isOpen, onSubmit, onCancel }: Demogra
         <form onSubmit={handleSubmit} className="space-y-4">
           <DialogHeader>
             <DialogTitle className="text-white">Before We Start...</DialogTitle>
-            <DialogDescription className="text-gray-400">Select your demographic!</DialogDescription>
+            <DialogDescription className="text-gray-400">
+              {defaultAge ? `Your age (${defaultAge}) will be used from your profile.` : "Select your gender to personalize your experience."}
+            </DialogDescription>
           </DialogHeader>
           
-          <div>
-            <Label htmlFor="age" className="text-gray-300">Age</Label>
-            <Input
-              id="age"
-              type="number"
-              placeholder="Enter your age"
-              value={age}
-              onChange={e => setAge(e.target.value)}
-              className="bg-[#23272f] text-white border-[#23272f] placeholder:text-gray-500 focus:border-green-500"
-              required
-            />
-          </div>
+          {defaultAge && (
+            <div className="p-3 bg-[#23272f] rounded-md">
+              <Label className="text-gray-400 text-sm">Age from profile</Label>
+              <p className="text-white font-semibold">{defaultAge} years old</p>
+            </div>
+          )}
           
           <div>
             <Label className="text-gray-300">Gender</Label>
@@ -79,18 +73,6 @@ export default function DemographicsForm({ isOpen, onSubmit, onCancel }: Demogra
             </RadioGroup>
           </div>
           
-          <div>
-            <Label htmlFor="role" className="text-gray-300">Role</Label>
-            <Input
-              id="role"
-              placeholder="Enter your role in the conversation (e.g., customer)"
-              value={role}
-              onChange={e => setRole(e.target.value)}
-              className="bg-[#23272f] text-white border-[#23272f] placeholder:text-gray-500 focus:border-green-500"
-              required
-            />
-          </div>
-          
           <DialogFooter className="flex gap-2 mt-4">
             <Button type="button" variant="outline" onClick={handleCancel} className="border-gray-500 text-black hover:bg-gray-700 hover:text-white">
               Cancel
@@ -99,7 +81,7 @@ export default function DemographicsForm({ isOpen, onSubmit, onCancel }: Demogra
           </DialogFooter>
           
           <p className="text-xs text-gray-500 mt-2">
-            This information is needed so that the chatbot is given context on how to interact with you
+            This information helps personalize your chat experience
           </p>
         </form>
       </DialogContent>

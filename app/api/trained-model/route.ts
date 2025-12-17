@@ -10,6 +10,7 @@ async function delay(ms: number) {
 // Interface for the Ollama FastAPI server
 interface OllamaRequest {
   message: string;
+  conversation_history?: Array<{ role: "user" | "assistant"; content: string }>;
   system_prompt?: string;
   max_tokens?: number;
   temperature?: number;
@@ -65,17 +66,24 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
   
   try {
-    const { message, system_prompt, temperature = 0.7, max_tokens = 200 } = await request.json();
+    const { message, conversation_history, system_prompt, temperature = 0.7, max_tokens = 200 } = await request.json();
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    // Call the Ollama FastAPI server with system prompt
-    console.log('Sending request to Ollama server:', { message, system_prompt: system_prompt ? 'provided' : 'none', max_tokens, temperature });
+    // Call the Ollama FastAPI server with system prompt and conversation history
+    console.log('Sending request to Ollama server:', { 
+      message, 
+      history_length: conversation_history?.length || 0,
+      system_prompt: system_prompt ? 'provided' : 'none', 
+      max_tokens, 
+      temperature 
+    });
     
     const data = await callOllamaServer({
       message,
+      conversation_history,
       system_prompt,
       max_tokens,
       temperature

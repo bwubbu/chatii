@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ModelToggle } from "@/components/chat/ModelToggle";
+import { LanguageToggle } from "@/components/chat/LanguageToggle";
 
 interface Conversation {
   id: string;
@@ -40,10 +41,12 @@ interface ConversationWithPersona {
 interface ConversationSidebarProps {
   currentModel?: 'gemini' | 'fairness';
   onModelChange?: (model: 'gemini' | 'fairness') => void;
+  currentLanguage?: 'english' | 'malay';
+  onLanguageChange?: (language: 'english' | 'malay') => void;
   onEndChat?: () => void;
 }
 
-export function ConversationSidebar({ currentModel, onModelChange, onEndChat }: ConversationSidebarProps) {
+export function ConversationSidebar({ currentModel, onModelChange, currentLanguage, onLanguageChange, onEndChat }: ConversationSidebarProps) {
   const [personaGroups, setPersonaGroups] = useState<PersonaGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const router = useRouter();
@@ -134,6 +137,15 @@ export function ConversationSidebar({ currentModel, onModelChange, onEndChat }: 
               onModelChange={onModelChange}
             />
           </div>
+          {currentLanguage && onLanguageChange && (
+            <div>
+              <label className="text-sm font-medium text-gray-300 mb-2 block">Language</label>
+              <LanguageToggle 
+                currentLanguage={currentLanguage}
+                onLanguageChange={onLanguageChange}
+              />
+            </div>
+          )}
           <Button
             variant="destructive"
             size="sm"

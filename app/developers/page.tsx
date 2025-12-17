@@ -7,29 +7,22 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Code2, 
   Key, 
-  Download, 
   Copy, 
-  ExternalLink, 
-  Zap, 
   Shield, 
   Users,
   ArrowRight,
-  CheckCircle
+  CheckCircle,
+  AlertCircle,
+  Trash2
 } from "lucide-react";
 import { useUser } from "@/components/UserContext";
 import { useRouter } from "next/navigation";
-
-interface APIKey {
-  id: string;
-  name: string;
-  key: string;
-  created: string;
-  usage: number;
-  limit: number;
-}
+import { supabase } from "@/supabaseClient";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Persona {
   id: string;
@@ -38,36 +31,171 @@ interface Persona {
   system_prompt: string;
 }
 
+interface APIKey {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used?: string;
+  usage_count: number;
+  rate_limit: number;
+  is_active: boolean;
+  permissions?: string[];
+  persona_id?: string | null;
+}
+
 export default function DeveloperPortal() {
   const { user, loading } = useUser();
   const router = useRouter();
-  const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
-  const [copiedKey, setCopiedKey] = useState("");
+  const [selectedPersona, setSelectedPersona] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState("");
 
   useEffect(() => {
     if (user) {
-      setApiKeys([]);
-      setPersonas([
-        {
-          id: "fitness-trainer",
-          name: "Fitness Trainer",
-          description: "Energetic fitness professional focused on health and motivation",
-          system_prompt: "You are a professional fitness trainer..."
-        },
-        {
-          id: "hotel-receptionist", 
-          name: "Hotel Receptionist",
-          description: "Professional hospitality expert focused on guest satisfaction",
-          system_prompt: "You are a friendly, professional hotel receptionist..."
-        }
-      ]);
+      fetchPersonas();
+      fetchApiKeys();
     }
   }, [user]);
 
+  const fetchPersonas = async () => {
+    const { data } = await supabase.from("personas").select("*").eq("is_active", true);
+    if (data) {
+      const mapped = data.map((p: any) => ({
+        id: p.id,
+        name: p.title,
+        description: p.description || "",
+        system_prompt: p.system_prompt || ""
+      }));
+      setPersonas(mapped);
+      // If no persona is selected yet, default to the first available persona
+      if (!selectedPersona && mapped.length > 0) {
+        setSelectedPersona(mapped[0].id);
+      }
+    }
+  };
+
+  const fetchApiKeys = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch("/api/api-keys", {
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`
+        }
+      });
+
+      if (response.ok) {
+        const { apiKeys } = await response.json();
+        setApiKeys(apiKeys || []);
+      }
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+    }
+  };
+
+  const generateApiKey = async () => {
+    if (!newKeyName.trim()) {
+      setSubmitMessage("Please enter a name for your API key");
+      return;
+    }
+
+    if (!selectedPersona) {
+      setSubmitMessage("Please select a persona for this API key");
+      return;
+    }
+
+    setIsGenerating(true);
+    setSubmitMessage("");
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setSubmitMessage("Please log in to generate API keys");
+        return;
+      }
+
+      const response = await fetch("/api/api-keys", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          name: newKeyName.trim(),
+          persona_id: selectedPersona
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setGeneratedKey(data.api_key);
+        setNewKeyName("");
+        await fetchApiKeys();
+      } else {
+        setSubmitMessage(data.error || "Failed to generate API key");
+      }
+    } catch (error: any) {
+      setSubmitMessage(`Error: ${error.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const deleteApiKey = async (keyId: string) => {
+    if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch("/api/api-keys", {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ keyId })
+      });
+
+      if (response.ok) {
+        await fetchApiKeys();
+        setSubmitMessage("API key deleted successfully");
+      } else {
+        const data = await response.json();
+        setSubmitMessage(data.error || "Failed to delete API key");
+      }
+    } catch (error: any) {
+      setSubmitMessage(`Error: ${error.message}`);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+
   if (loading) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0f0f10] via-[#1a1a1f] to-[#23232a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+          <p className="mt-4 text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -88,105 +216,35 @@ export default function DeveloperPortal() {
     );
   }
 
-  const generateAPIKey = () => {
-    if (!newKeyName.trim()) return;
-    
-    const newKey: APIKey = {
-      id: Date.now().toString(),
-      name: newKeyName,
-      key: `pk_fairness_${Math.random().toString(36).substring(2, 34)}`,
-      created: new Date().toISOString().split('T')[0],
-      usage: 0,
-      limit: 100
-    };
-    
-    setApiKeys([...apiKeys, newKey]);
-    setNewKeyName("");
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(text);
-    setTimeout(() => setCopiedKey(""), 2000);
-  };
-
-  const exportPersona = (persona: Persona) => {
-    const exportData = {
-      persona: {
-        id: persona.id,
-        name: persona.name,
-        description: persona.description,
-        system_prompt: persona.system_prompt
-      },
-      usage_guide: {
-        api_endpoint: "http://localhost:8002/chat",
-        example_request: {
-          message: "Hello!",
-          persona_id: persona.id,
-          user_demographics: { age: "25", role: "student" }
-        }
-      },
-      model_info: {
-        base_model: "llama3.1:8b-instruct-q4_0",
-        fairness_training: true,
-        memory_usage: "~4.7GB"
-      }
-    };
-
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${persona.id}-config.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
 
   return (
-    <div className="min-h-screen bg-[#171717] text-white">
-      <div className="container mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center mb-4">
-            <Code2 className="w-8 h-8 text-blue-400 mr-3" />
-            <h1 className="text-4xl font-bold">Developer Portal</h1>
-            <Badge variant="secondary" className="ml-3 bg-blue-600">Beta</Badge>
+    <div className="min-h-screen bg-gradient-to-br from-[#0f0f10] via-[#1a1a1f] to-[#23232a] text-white">
+      <div className="container mx-auto p-6 max-w-5xl relative z-10">
+        <div className="mb-6">
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold mb-2 text-white">Developer Portal</h1>
+            <p className="text-gray-400">Integrate ethical AI personas into your applications. Export configurations, generate API keys, and build with fairness-trained models.</p>
           </div>
-          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-            Integrate ethical AI personas into your applications. Export configurations, 
-            generate API keys, and build with fairness-trained models.
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <Card className="bg-[#23232a] border-gray-600">
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Key className="w-8 h-8 text-blue-400 mr-3" />
-                <div>
-                  <div className="text-2xl font-bold">{apiKeys.length}</div>
-                  <div className="text-gray-400">API Keys</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-[#23232a] border-gray-600">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+          <Card className="bg-[#23232a] border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center">
                 <Users className="w-8 h-8 text-green-400 mr-3" />
                 <div>
-                  <div className="text-2xl font-bold">{personas.length}</div>
+                  <div className="text-2xl font-bold text-white">{personas.length}</div>
                   <div className="text-gray-400">Available Personas</div>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-[#23232a] border-gray-600">
+          <Card className="bg-[#23232a] border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center">
                 <Shield className="w-8 h-8 text-green-400 mr-3" />
                 <div>
-                  <div className="text-2xl font-bold">100%</div>
+                  <div className="text-2xl font-bold text-white">100%</div>
                   <div className="text-gray-400">Fairness Trained</div>
                 </div>
               </div>
@@ -195,199 +253,260 @@ export default function DeveloperPortal() {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-[#23232a]">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="api-keys">API Keys</TabsTrigger>
-            <TabsTrigger value="personas">Export Personas</TabsTrigger>
-            <TabsTrigger value="docs">Documentation</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 bg-[#23232a] border-gray-700">
+            <TabsTrigger value="overview" className="text-gray-400 data-[state=active]:bg-purple-600 data-[state=active]:text-white">Getting Started</TabsTrigger>
+            <TabsTrigger value="api-keys" className="text-gray-400 data-[state=active]:bg-purple-600 data-[state=active]:text-white">API Keys & Personas</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="bg-[#23232a] border-gray-600">
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Zap className="w-5 h-5 mr-2 text-yellow-400" />
-                    Quick Start
-                  </CardTitle>
-                  <CardDescription>Get up and running in 5 minutes</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="w-5 h-5 text-green-400" />
-                    <span>Generate your API key</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="w-5 h-5 text-green-400" />
-                    <span>Export a persona configuration</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="w-5 h-5 text-green-400" />
-                    <span>Make your first API call</span>
-                  </div>
-                  <Button className="w-full mt-4" variant="outline">
-                    View Full Guide <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-[#23232a] border-gray-600">
-                <CardHeader>
-                  <CardTitle>Example Integration</CardTitle>
-                  <CardDescription>Python example using our API</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-black p-4 rounded-lg font-mono text-sm text-left">
-                    <div className="text-green-400"># Install requests</div>
-                    <div className="text-gray-300">pip install requests</div>
-                    <br />
-                    <div className="text-green-400"># Use the API</div>
-                    <div>
-                      <span className="text-blue-400">import</span>{" "}
-                      <span className="text-gray-300">requests</span>
-                    </div>
-                    <br />
-                    <div className="text-gray-300">response = requests.post(</div>
-                    <div className="text-yellow-400 ml-4">&quot;http://localhost:8002/chat&quot;,</div>
-                    <div className="text-gray-300 ml-4">
-                      json=&#123;&quot;message&quot;: &quot;Hello!&quot;, &quot;persona_id&quot;: &quot;fitness-trainer&quot;&#125;
-                    </div>
-                    <div className="text-gray-300">)</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
           <TabsContent value="api-keys" className="space-y-6">
-            <Card className="bg-[#23232a] border-gray-600">
+            <Card className="bg-[#1a1a1f]/80 border-gray-700 backdrop-blur-sm">
               <CardHeader>
-                <CardTitle>Generate New API Key</CardTitle>
-                <CardDescription>Create a new API key for your project</CardDescription>
+                <CardTitle className="flex items-center text-white">
+                  <Key className="w-5 h-5 mr-2 text-purple-400" />
+                  Generate New API Key
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Create a new API key to access our personas API. You'll only see the key once, so save it securely!
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="keyName">Project Name</Label>
+                  <Label htmlFor="keyName" className="text-gray-300">Key Name</Label>
                   <Input
                     id="keyName"
-                    placeholder="My Awesome Project"
+                    placeholder="e.g., My Mobile App"
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
-                    className="bg-[#171717] border-gray-600"
+                    className="bg-[#23232a] border-gray-700 text-white placeholder:text-gray-500"
                   />
+                  <p className="text-sm text-gray-400">Give your API key a descriptive name to identify it later</p>
                 </div>
-                <Button onClick={generateAPIKey} className="w-full">
-                  <Key className="w-4 h-4 mr-2" />
-                  Generate API Key
+                <div className="space-y-2">
+                  <Label htmlFor="persona" className="text-gray-300">Select Persona</Label>
+                  <Select value={selectedPersona} onValueChange={setSelectedPersona}>
+                    <SelectTrigger className="bg-[#23232a] border-gray-700 text-white">
+                      <SelectValue placeholder="Select a persona" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#23232a] border-gray-700">
+                      {personas.map((persona) => (
+                        <SelectItem 
+                          key={persona.id} 
+                          value={persona.id}
+                          className="text-white hover:bg-[#1a1a1f] focus:bg-[#1a1a1f]"
+                        >
+                          {persona.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button 
+                  onClick={generateApiKey} 
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white" 
+                  disabled={isGenerating || !newKeyName.trim()}
+                >
+                  {isGenerating ? "Generating..." : "Generate API Key"}
+                  <Key className="w-4 h-4 ml-2" />
                 </Button>
+
+                {generatedKey && (
+                  <div className="p-4 bg-[#23232a] rounded-lg border border-gray-700">
+                    <div className="flex items-start gap-2 mb-3">
+                      <AlertCircle className="h-5 w-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+                      <p className="font-bold text-yellow-300">⚠️ Save this key now - you won't see it again!</p>
+                    </div>
+                    <div className="flex items-center space-x-2 mb-3">
+                      <code className="flex-1 bg-[#1a1a1f] p-3 rounded text-sm text-green-400 font-mono break-all border border-gray-700">
+                        {generatedKey}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => copyToClipboard(generatedKey)}
+                        className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+                      >
+                        {copiedKey ? (
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                        <p className="text-xs text-gray-300">Copy this key and store it securely. It will be hashed in our database and cannot be retrieved later.</p>
+                  </div>
+                )}
+
+                {submitMessage && (
+                  <div className={`p-4 rounded-lg border ${submitMessage.includes('success') || submitMessage.includes('deleted') ? 'bg-green-900/20 border-green-500/50 text-green-300' : 'bg-red-900/20 border-red-500/50 text-red-300'}`}>
+                    {submitMessage}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            <Card className="bg-[#23232a] border-gray-600">
+            <Card className="bg-[#1a1a1f]/80 border-gray-700 backdrop-blur-sm">
               <CardHeader>
-                <CardTitle>Your API Keys</CardTitle>
-                <CardDescription>Manage your existing API keys</CardDescription>
+                <CardTitle className="text-white">Your API Keys</CardTitle>
+                <CardDescription className="text-gray-400">Manage your API keys. You can delete keys you no longer need.</CardDescription>
               </CardHeader>
               <CardContent>
                 {apiKeys.length === 0 ? (
-                  <p className="text-gray-400 text-center py-4">No API keys yet. Generate your first one above!</p>
+                  <div className="text-center py-8">
+                    <Key className="w-12 h-12 mx-auto text-gray-600 mb-4" />
+                    <p className="text-gray-400 mb-2">No API keys yet</p>
+                    <p className="text-sm text-gray-500">Generate your first API key above to get started</p>
+                  </div>
                 ) : (
                   <div className="space-y-4">
-                    {apiKeys.map((key) => (
-                      <div key={key.id} className="flex items-center justify-between p-4 bg-[#171717] rounded-lg">
-                        <div>
-                          <h3 className="font-semibold">{key.name}</h3>
-                          <p className="text-sm text-gray-400">Created: {key.created}</p>
-                          <p className="text-sm text-gray-400">Usage: {key.usage}/{key.limit} requests</p>
+                    {apiKeys.map((key) => {
+                      // Get persona from persona_id (preferred) or from permissions (fallback)
+                      const personaId = key.persona_id || key.permissions?.find(p => p.startsWith('persona:'))?.replace('persona:', '');
+                      const associatedPersona = personaId ? personas.find(p => p.id === personaId) : null;
+                      
+                      return (
+                      <div key={key.id} className="flex items-center justify-between p-4 bg-[#23232a] rounded-lg border border-gray-700">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h3 className="font-semibold text-white">{key.name}</h3>
+                            {associatedPersona && (
+                              <Badge variant="outline" className="border-purple-500 text-purple-400 text-xs">
+                                {associatedPersona.name}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-400">
+                            Created: {new Date(key.created_at).toLocaleDateString()}
+                          </p>
+                          {key.last_used && (
+                            <p className="text-sm text-gray-400">
+                              Last used: {new Date(key.last_used).toLocaleDateString()}
+                            </p>
+                          )}
+                          <p className="text-sm text-gray-400">
+                            Usage: {key.usage_count}/{key.rate_limit} requests/hour
+                          </p>
+                          <div className="mt-2">
+                            <code className="bg-[#23232a] p-2 rounded text-sm text-gray-400 font-mono border border-gray-700">
+                              pk_fairness_***... (key hidden for security)
+                            </code>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <code className="bg-black p-2 rounded text-sm">
-                            {key.key.substring(0, 16)}...
-                          </code>
+                        <div className="ml-4 flex items-center space-x-2">
+                          <Badge 
+                            variant={key.is_active ? "default" : "secondary"}
+                            className={key.is_active ? "bg-green-600" : "bg-gray-700 text-gray-400"}
+                          >
+                            {key.is_active ? "Active" : "Inactive"}
+                          </Badge>
                           <Button
                             size="sm"
-                            variant="outline"
-                            onClick={() => copyToClipboard(key.key)}
+                            variant="ghost"
+                            onClick={() => deleteApiKey(key.id)}
+                            className="text-gray-400 hover:text-white hover:bg-gray-700/50"
                           >
-                            {copiedKey === key.key ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="personas" className="space-y-6">
-            <Card className="bg-[#23232a] border-gray-600">
+          <TabsContent value="overview" className="space-y-6">
+            <Card className="bg-[#1a1a1f]/80 border-gray-700 backdrop-blur-sm">
               <CardHeader>
-                <CardTitle>Available Personas</CardTitle>
-                <CardDescription>Export persona configurations for use in your applications</CardDescription>
+                <CardTitle className="flex items-center text-white">
+                  <Code2 className="w-5 h-5 mr-2 text-purple-400" />
+                  How to Use the API
+                </CardTitle>
+                <CardDescription className="text-gray-400">A simple guide to get started with our fairness-trained AI personas</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {personas.map((persona) => (
-                    <Card key={persona.id} className="bg-[#171717] border-gray-600">
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          {persona.name}
-                          <Badge variant="outline" className="border-green-500 text-green-400">
-                            Fairness Trained
-                          </Badge>
-                        </CardTitle>
-                        <CardDescription>{persona.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => exportPersona(persona)}
-                          className="w-full"
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Export Configuration
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white">
+                      1
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-white mb-2">Generate Your API Key</h3>
+                      <p className="text-gray-300 text-sm">
+                        Go to the "API Keys & Personas" tab and create a new API key. Give it a descriptive name like "My Mobile App" or "Customer Service Bot". 
+                        <strong className="text-yellow-400"> Save the key immediately</strong> - you'll only see it once!
+                      </p>
+                    </div>
+                  </div>
 
-          <TabsContent value="docs" className="space-y-6">
-            <Card className="bg-[#23232a] border-gray-600">
-              <CardHeader>
-                <CardTitle>Documentation & Resources</CardTitle>
-                <CardDescription>Everything you need to integrate our API</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <a 
-                    href="http://localhost:8002/docs" 
-                    target="_blank"
-                    className="flex items-center justify-center h-20 border border-gray-600 rounded-lg hover:bg-[#171717] transition-colors"
-                  >
-                    <div className="text-center">
-                      <ExternalLink className="w-6 h-6 mb-2 mx-auto" />
-                      <div>API Reference</div>
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white">
+                      2
                     </div>
-                  </a>
-                  <a 
-                    href="/PERSONA_API_GUIDE.md" 
-                    target="_blank"
-                    className="flex items-center justify-center h-20 border border-gray-600 rounded-lg hover:bg-[#171717] transition-colors"
-                  >
-                    <div className="text-center">
-                      <Code2 className="w-6 h-6 mb-2 mx-auto" />
-                      <div>Integration Guide</div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-white mb-2">Choose a Persona</h3>
+                      <p className="text-gray-300 text-sm">
+                        When generating your API key, you must select a specific persona from the dropdown. That persona will be automatically linked to your API key – you won't need to specify the persona_id in your API calls. Each persona is a specialized AI character trained for fairness and respect.
+                      </p>
                     </div>
-                  </a>
+                  </div>
+
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white">
+                      3
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-white mb-2">Make API Calls</h3>
+                      <p className="text-gray-300 text-sm mb-2">
+                        Use your API key to chat with personas. Send a POST request to <code className="bg-[#23232a] px-2 py-1 rounded text-xs text-gray-300 border border-gray-700">http://localhost:8002/chat</code>
+                      </p>
+                      <p className="text-gray-300 text-sm mb-2">
+                        Your API key is always linked to a specific persona, so you don't need to include <code className="bg-[#23232a] px-1 py-0.5 rounded text-xs text-gray-300 border border-gray-700">persona_id</code> in the request body.
+                      </p>
+                      <pre className="bg-[#23232a] p-3 rounded text-xs text-green-400 overflow-x-auto border border-gray-700 mb-2">
+{`{
+  "message": "Hello!",
+  "user_demographics": {
+    "age": "25",
+    "role": "student"
+  }
+}`}
+                      </pre>
+                      <p className="text-gray-300 text-sm mt-2">
+                        Include your API key in the Authorization header: <code className="bg-[#23232a] px-2 py-1 rounded text-xs text-gray-300 border border-gray-700">Bearer pk_fairness_...</code>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white">
+                      4
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-white mb-2">What Are API Keys For?</h3>
+                      <p className="text-gray-300 text-sm">
+                        API keys let you integrate our fairness-trained AI personas into your own applications. Use them for customer service bots, 
+                        educational platforms, health apps, or any project that needs ethical, respectful AI interactions. Each key has a rate limit of 
+                        100 requests per hour to ensure fair usage.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-700">
+                  <Button 
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white" 
+                    onClick={() => {
+                      const apiKeysTab = document.querySelector('[value="api-keys"]') as HTMLElement;
+                      apiKeysTab?.click();
+                    }}
+                  >
+                    Get Started - Generate API Key <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
+
           </TabsContent>
         </Tabs>
       </div>

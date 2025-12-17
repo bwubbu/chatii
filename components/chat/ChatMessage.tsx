@@ -5,12 +5,7 @@ import { Flag, AlertTriangle, ThumbsDown, MessageSquareX, ShieldAlert } from "lu
 import { useState } from "react";
 import { supabase } from "@/supabaseClient";
 import { useToast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 
@@ -24,6 +19,7 @@ interface Message {
 interface ChatMessageProps {
   message: Message;
   hideFlag?: boolean;
+  conversationId?: string;
 }
 
 // Custom markdown components for better styling
@@ -68,12 +64,8 @@ const FLAG_TYPES = [
   { id: 'other', label: 'Other Issue', icon: Flag, color: 'text-gray-500', severity: 'low' }
 ] as const;
 
-export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
-  const [flagModalOpen, setFlagModalOpen] = useState(false);
+export function ChatMessage({ message, hideFlag = false, conversationId }: ChatMessageProps) {
   const [quickFlagOpen, setQuickFlagOpen] = useState(false);
-  const [flagType, setFlagType] = useState<string>("");
-  const [flagReason, setFlagReason] = useState("");
-  const [customReason, setCustomReason] = useState("");
   const [flagLoading, setFlagLoading] = useState(false);
   const { toast } = useToast();
 
@@ -81,85 +73,68 @@ export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
     if (!message) return;
     setFlagLoading(true);
 
-    const flagTypeData = FLAG_TYPES.find(f => f.id === type);
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+      const flagTypeData = FLAG_TYPES.find(f => f.id === type);
+      const { data: { session } } = await supabase.auth.getSession();
 
-    const insertData = {
-      message_id: message.id,
-      user_id: user?.id,
-      content: message.content,
-      reason: flagTypeData?.label || type,
-      severity: flagTypeData?.severity || 'medium',
-      flag_type: type, // Changed from array to string to match database
-      status: "pending"
-    };
+      if (!session) {
+        toast({ 
+          title: "Failed to flag message", 
+          description: "Please log in to flag messages", 
+          variant: "destructive" 
+        });
+        setFlagLoading(false);
+        setQuickFlagOpen(false);
+        return;
+      }
 
-    console.log('Inserting flag data:', insertData);
-    const { error } = await supabase.from("flagged_messages").insert([insertData]);
-
-    setFlagLoading(false);
-    setQuickFlagOpen(false);
-
-    if (!error) {
-      console.log('Flag successfully inserted!');
-      toast({ 
-        title: "Response flagged!", 
-        description: `Flagged as: ${flagTypeData?.label}`,
-        variant: "default" 
+      const response = await fetch("/api/flag-message", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message_id: message.id,
+          content: message.content,
+          reason: flagTypeData?.label || type,
+          severity: flagTypeData?.severity || 'medium',
+          flag_type: type,
+          conversation_id: conversationId
+        }),
       });
-    } else {
-      console.error('Flag insert error:', error);
+
+      const result = await response.json();
+      setFlagLoading(false);
+      setQuickFlagOpen(false);
+
+      if (!response.ok) {
+        console.error('Flag insert error:', result);
+        toast({ 
+          title: "Failed to flag message", 
+          description: result.error || result.details || "Unknown error occurred", 
+          variant: "destructive" 
+        });
+      } else {
+        console.log('Flag successfully inserted!', result);
+        toast({ 
+          title: "Response flagged!", 
+          description: `Flagged as: ${flagTypeData?.label}`,
+          variant: "default" 
+        });
+      }
+    } catch (err: any) {
+      console.error('Unexpected error in handleQuickFlag:', err);
+      setFlagLoading(false);
+      setQuickFlagOpen(false);
       toast({ 
         title: "Failed to flag message", 
-        description: error.message, 
+        description: err?.message || "An unexpected error occurred", 
         variant: "destructive" 
       });
     }
   };
 
-  const handleDetailedFlag = async () => {
-    if (!message || !flagType) return;
-    setFlagLoading(true);
-
-    const flagTypeData = FLAG_TYPES.find(f => f.id === flagType);
-    const { data: { user } } = await supabase.auth.getUser();
-    const finalReason = customReason.trim() || flagTypeData?.label || flagType;
-
-    const insertData = {
-      message_id: message.id,
-      user_id: user?.id,
-      content: message.content,
-      reason: finalReason,
-      severity: flagTypeData?.severity || 'medium',
-      flag_type: flagType, // Changed from array to string to match database
-      status: "pending"
-    };
-
-    console.log('Inserting detailed flag data:', insertData);
-    const { data, error } = await supabase.from("flagged_messages").insert([insertData]);
-
-    setFlagLoading(false);
-    setFlagModalOpen(false);
-    setFlagType("");
-    setCustomReason("");
-
-    if (!error) {
-      console.log('Detailed flag successfully inserted!');
-      toast({ 
-        title: "Response flagged for review!", 
-        description: `Flagged as: ${flagTypeData?.label}`,
-        variant: "default" 
-      });
-    } else {
-      console.error('Detailed flag insert error:', error);
-      console.error('Full error object:', JSON.stringify(error, null, 2));
-      toast({ 
-        title: "Failed to flag message", 
-        description: error?.message || "Unknown error occurred", 
-        variant: "destructive" 
-      });
-    }
-  };
 
   return (
     <>
@@ -202,7 +177,7 @@ export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
                   <div className="absolute top-full mt-1 left-0 bg-[#1a1a1f] border border-gray-600 rounded-lg shadow-lg z-10 min-w-48">
                     <div className="p-2 space-y-1">
                       <div className="text-xs text-gray-400 mb-2 px-2">Quick Flag:</div>
-                      {FLAG_TYPES.slice(0, 4).map((flagType) => {
+                      {FLAG_TYPES.map((flagType) => {
                         const IconComponent = flagType.icon;
                         return (
                           <button
@@ -223,17 +198,6 @@ export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
                           </button>
                         );
                       })}
-                      <hr className="border-gray-600 my-1" />
-                      <button
-                        onClick={() => {
-                          setQuickFlagOpen(false);
-                          setFlagModalOpen(true);
-                        }}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-gray-700 rounded transition-colors text-left text-gray-300"
-                      >
-                        <Flag className="w-3 h-3" />
-                        More Details...
-                      </button>
                     </div>
                   </div>
                 )}
@@ -243,84 +207,6 @@ export function ChatMessage({ message, hideFlag = false }: ChatMessageProps) {
         </div>
       </div>
 
-      {!hideFlag && (
-        <Dialog open={flagModalOpen} onOpenChange={setFlagModalOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-orange-500" />
-                Flag Response
-              </DialogTitle>
-              <DialogDescription>
-                Help us improve by reporting problematic responses. Your feedback is reviewed by our team.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <div>
-                <Label>Flagged Response</Label>
-                <div className="bg-[#23232a] text-gray-100 rounded-lg p-3 mt-1 text-sm max-h-32 overflow-y-auto border border-gray-600">
-                  {message.content}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="flag-type">Issue Type *</Label>
-                <Select value={flagType} onValueChange={setFlagType}>
-                  <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
-                    <SelectValue placeholder="Select the type of issue" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#23232a] border-gray-600">
-                    {FLAG_TYPES.map((type) => {
-                      const IconComponent = type.icon;
-                      return (
-                        <SelectItem key={type.id} value={type.id} className="text-white hover:bg-gray-700">
-                          <div className="flex items-center gap-2">
-                            <IconComponent className={`w-4 h-4 ${type.color}`} />
-                            <span>{type.label}</span>
-                            <Badge variant="outline" className={`ml-2 ${
-                              type.severity === 'critical' ? 'border-red-500 text-red-400' :
-                              type.severity === 'high' ? 'border-orange-500 text-orange-400' :
-                              'border-gray-500 text-gray-400'
-                            }`}>
-                              {type.severity}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="custom-reason">Additional Details (Optional)</Label>
-                <Textarea
-                  id="custom-reason"
-                  value={customReason}
-                  onChange={(e) => setCustomReason(e.target.value)}
-                  placeholder="Provide specific details about the issue (optional)"
-                  className="bg-[#23232a] border-gray-600 text-white placeholder-gray-400"
-                  rows={3}
-                />
-              </div>
-            </div>
-            
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setFlagModalOpen(false)} disabled={flagLoading}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleDetailedFlag} 
-                disabled={flagLoading || !flagType}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                {flagLoading ? "Submitting..." : "Submit Flag"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </>
   );
 } 

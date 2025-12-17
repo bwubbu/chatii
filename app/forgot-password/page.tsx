@@ -85,7 +85,7 @@ export default function ForgotPasswordPage() {
       {/* Left Side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 text-white">
         <div>
-          <h1 className="text-2xl font-bold mb-16">Chatii</h1>
+          <h1 className="text-2xl font-bold mb-16">RamahAI</h1>
           <div className="space-y-6">
             <h2 className="text-4xl font-bold leading-tight">
               {welcomeText}
@@ -104,7 +104,7 @@ export default function ForgotPasswordPage() {
         <div className="w-full max-w-md space-y-8">
           {/* Mobile Header */}
           <div className="lg:hidden text-center">
-            <h1 className="text-2xl font-bold text-white mb-8">Chatii</h1>
+            <h1 className="text-2xl font-bold text-white mb-8">RamahAI</h1>
           </div>
 
           <Card className="bg-[#0F0F0F] border-gray-600 shadow-2xl shadow-black/50">

@@ -2,10 +2,11 @@ import type { Metadata } from 'next'
 import './globals.css'
 import BlackHeader from '@/components/BlackHeader'
 import { UserProvider } from '@/components/UserContext'
+import { LanguageProvider } from '@/components/LanguageContext'
 import { usePathname } from 'next/navigation'
 
 export const metadata: Metadata = {
-  title: 'Chatii',
+  title: 'RamahAI',
   description: 'Your AI Chat Assistant',
   generator: 'v0.dev',
 }
@@ -21,8 +22,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <UserProvider>
-          {!isChatPage && <BlackHeader />}
-          {children}
+          <LanguageProvider>
+            {!isChatPage && <BlackHeader />}
+            {children}
+          </LanguageProvider>
         </UserProvider>
       </body>
     </html>

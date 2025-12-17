@@ -18,8 +18,10 @@ Transform your applications with **ethical AI personas**! Export our fairness-tr
 ```bash
 curl -X POST "http://localhost:8002/api-keys/generate" \
      -H "Content-Type: application/json" \
-     -d '{"user_id": "your-user-id", "name": "My Project"}'
+     -d '{"user_id": "your-user-id", "name": "My Project", "persona_id": "fitness-trainer"}'
 ```
+
+**Important:** You must specify a `persona_id` when generating an API key. Each key is permanently linked to one persona.
 
 **Response:**
 ```json
@@ -46,10 +48,11 @@ curl -X POST "http://localhost:8002/chat" \
      -H "Content-Type: application/json" \
      -d '{
        "message": "I want to start exercising",
-       "persona_id": "fitness-trainer",
        "user_demographics": {"age": "25", "role": "student"}
      }'
 ```
+
+**Note:** Your API key is automatically linked to a specific persona when generated, so you don't need to include `persona_id` in your requests.
 
 ## 🔧 **Integration Examples**
 
@@ -64,13 +67,12 @@ class FairnessChatbot:
         self.base_url = "http://localhost:8002"
         self.headers = {"Authorization": f"Bearer {api_key}"}
     
-    def chat(self, message, persona_id=None, user_demographics=None):
+    def chat(self, message, user_demographics=None):
         response = requests.post(
             f"{self.base_url}/chat",
             headers=self.headers,
             json={
                 "message": message,
-                "persona_id": persona_id,
                 "user_demographics": user_demographics
             }
         )
@@ -81,12 +83,12 @@ class FairnessChatbot:
         return response.json()
 
 # Usage
+# Note: Your API key is linked to a specific persona when generated
 bot = FairnessChatbot("pk_fairness_your_api_key")
 
-# Chat with fitness trainer
+# Chat with the persona linked to your API key
 response = bot.chat(
     message="How do I lose weight?",
-    persona_id="fitness-trainer",
     user_demographics={"age": "30", "gender": "female", "role": "professional"}
 )
 
@@ -103,7 +105,7 @@ class FairnessChatbot {
         this.baseURL = 'http://localhost:8002';
     }
     
-    async chat(message, personaId = null, userDemographics = null) {
+    async chat(message, userDemographics = null) {
         const response = await fetch(`${this.baseURL}/chat`, {
             method: 'POST',
             headers: {
@@ -112,7 +114,6 @@ class FairnessChatbot {
             },
             body: JSON.stringify({
                 message,
-                persona_id: personaId,
                 user_demographics: userDemographics
             })
         });
@@ -121,11 +122,11 @@ class FairnessChatbot {
 }
 
 // Usage
+// Note: Your API key is linked to a specific persona when generated
 const bot = new FairnessChatbot('pk_fairness_your_api_key');
 
 const response = await bot.chat(
     "I need help with my hotel booking",
-    "hotel-receptionist",
     { age: "45", role: "business" }
 );
 
@@ -140,7 +141,6 @@ import React, { useState } from 'react';
 const FairnessChat = ({ apiKey }) => {
     const [message, setMessage] = useState('');
     const [response, setResponse] = useState('');
-    const [persona, setPersona] = useState('fitness-trainer');
     
     const sendMessage = async () => {
         const result = await fetch('http://localhost:8002/chat', {
@@ -151,7 +151,6 @@ const FairnessChat = ({ apiKey }) => {
             },
             body: JSON.stringify({
                 message,
-                persona_id: persona,
                 user_demographics: { age: "25", role: "student" }
             })
         });
@@ -162,11 +161,6 @@ const FairnessChat = ({ apiKey }) => {
     
     return (
         <div>
-            <select value={persona} onChange={(e) => setPersona(e.target.value)}>
-                <option value="fitness-trainer">Fitness Trainer</option>
-                <option value="hotel-receptionist">Hotel Receptionist</option>
-            </select>
-            
             <input 
                 value={message} 
                 onChange={(e) => setMessage(e.target.value)}
@@ -210,7 +204,6 @@ curl -X POST "http://localhost:8002/personas/fitness-trainer/export" \
     "headers": {"Authorization": "Bearer your_key"},
     "example_request": {
       "message": "Hello!",
-      "persona_id": "fitness-trainer",
       "user_demographics": {"age": "25", "role": "student"}
     }
   },
@@ -238,43 +231,41 @@ Perfect for migrating to/from OpenAI models!
 
 ### **1. Customer Service Bots**
 ```python
-# Hotel booking system
+# Hotel booking system (API key linked to hotel-receptionist persona)
 response = bot.chat(
     "I want to cancel my reservation", 
-    persona_id="hotel-receptionist",
     user_demographics={"age": "50", "role": "business"}
 )
 ```
 
 ### **2. Health & Fitness Apps**
 ```python
-# Fitness coaching app
+# Fitness coaching app (API key linked to fitness-trainer persona)
 response = bot.chat(
     "Create a workout plan for me",
-    persona_id="fitness-trainer", 
     user_demographics={"age": "22", "gender": "female"}
 )
 ```
 
 ### **3. Educational Platforms**
 ```python
-# Learning management system
+# Learning management system (API key linked to teacher persona)
 response = bot.chat(
     "Explain machine learning simply",
-    persona_id="teacher",
     user_demographics={"age": "16", "role": "student"}
 )
 ```
 
 ### **4. E-commerce**
 ```python
-# Product recommendation system
+# Product recommendation system (API key linked to sales-assistant persona)
 response = bot.chat(
     "I need a laptop for gaming",
-    persona_id="sales-assistant",
     user_demographics={"age": "28", "role": "gamer"}
 )
 ```
+
+**Note:** Each API key is linked to a specific persona when generated. To use different personas, generate separate API keys for each one.
 
 ## 📊 **API Endpoints Reference**
 
