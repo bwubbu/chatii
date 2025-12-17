@@ -1,0 +1,39 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore
+
+.git
+.gitignore
+.env*
+*.md
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+fine_tuning/
+Lora Model/
+*.safetensors
+*.bin
+*.pth
+*.pt
+*.ckpt
+*.model
+*.weights
+books/
+scripts/
+supabase/migrations/
+app/
+components/
+lib/
+public/
+node_modules/
+.next/
+package.json
+pnpm-lock.yaml
+tsconfig.json
+tailwind.config.ts
+postcss.config.js
+railway.json
+RAILWAY_DEPLOYMENT.md
