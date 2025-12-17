@@ -101,3 +101,6 @@ Thumbs.db
 # Local helper scripts and migrations (not needed in GitHub)
 scripts/
 supabase/migrations/*.sql
+
+books/
+fine_tuning/data/*.code-workspace
