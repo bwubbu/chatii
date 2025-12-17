@@ -23,13 +23,16 @@ interface OllamaResponse {
   temperature: number;
 }
 
+// Get Ollama server URL from environment variable (defaults to localhost for local dev)
+const OLLAMA_SERVER_URL = process.env.OLLAMA_SERVER_URL || 'http://localhost:8000';
+
 // Function to call Ollama FastAPI server with retries
 async function callOllamaServer(data: OllamaRequest, retries = MAX_RETRIES): Promise<OllamaResponse> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`Calling Ollama server (attempt ${attempt}/${retries})`);
+      console.log(`Calling Ollama server (attempt ${attempt}/${retries}) at ${OLLAMA_SERVER_URL}`);
       
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch(`${OLLAMA_SERVER_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
