@@ -14,7 +14,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import FeedbackQuestionnaire from "@/components/feedback/FeedbackQuestionnaire";
-import DemographicsForm from "@/components/chat/DemographicsForm";
 
 
 interface Message {
@@ -37,7 +36,7 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [messages, setMessages] = useState<Message[]>([]);
   const [personaData, setPersonaData] = useState<Persona | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [demographics, setDemographics] = useState<{ age?: string; gender?: string; role?: string; rating?: number; feedback?: string }>({});
+  const [demographics, setDemographics] = useState<{ nationality?: string; age?: number; race?: string; gender?: string }>({});
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flagModalOpen, setFlagModalOpen] = useState(false);
@@ -45,8 +44,6 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [flagLoading, setFlagLoading] = useState(false);
   const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
   const [showEndChatOptions, setShowEndChatOptions] = useState(false);
-  const [demographicsFormOpen, setDemographicsFormOpen] = useState(false);
-  const [demographicsCollected, setDemographicsCollected] = useState(false);
   const [currentModel, setCurrentModel] = useState<'gemini' | 'fairness'>('fairness'); // Default to fairness model
   
   // Add ref for auto-scrolling
@@ -63,35 +60,6 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
     fetchDemographics();
   }, [persona, conversation]);
 
-  useEffect(() => {
-    // Check if demographics are already collected for this conversation
-    const checkDemographics = async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select("demographics")
-        .eq("id", conversation)
-        .single();
-      
-      if (error) {
-        console.error("Error checking demographics:", error);
-        return;
-      }
-      
-      const hasDemographics = data.demographics && 
-        data.demographics.age && 
-        data.demographics.gender && 
-        data.demographics.role;
-      
-      if (hasDemographics) {
-        setDemographicsCollected(true);
-      } else {
-        // Show demographics form for new conversations
-        setDemographicsFormOpen(true);
-      }
-    };
-    
-    checkDemographics();
-  }, [conversation]);
 
   const fetchPersona = async () => {
     const { data, error } = await supabase
@@ -124,17 +92,39 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   };
 
   const fetchDemographics = async () => {
-    const { data, error } = await supabase
-      .from("conversations")
-      .select("demographics")
-      .eq("id", conversation)
-      .single();
-    if (error) {
-      console.error("Error fetching demographics:", error);
+    try {
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error("Error getting user:", userError);
+        setDemographics({});
+        return;
+      }
+
+      // Fetch user demographics from user_profiles (from registration)
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("nationality, age, race, gender")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) {
+        console.error("Error fetching user demographics:", error);
+        setDemographics({});
+        return;
+      }
+
+      // Set demographics from user profile
+      setDemographics({
+        nationality: data?.nationality || undefined,
+        age: data?.age || undefined,
+        race: data?.race || undefined,
+        gender: data?.gender || undefined,
+      });
+    } catch (error) {
+      console.error("Error in fetchDemographics:", error);
       setDemographics({});
-      return;
     }
-    setDemographics(data.demographics || {});
   };
 
   const startNewConversation = async () => {
@@ -177,6 +167,102 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
     });
 
     try {
+      // Build RAG query based on user demographics and conversation context
+      const recentMessages = messages.slice(-3).map(msg => msg.content).join(" ") + " " + content;
+      const ragQuery = demographics.nationality && demographics.race 
+        ? `${recentMessages} cultural context for ${demographics.nationality} ${demographics.race} user`
+        : recentMessages;
+
+      // Map nationality/race to target culture for book sections
+      const mapToTargetCulture = (nationality?: string, race?: string): string | null => {
+        if (!nationality) return null;
+        if (nationality === "Sweden") return "Swedish";
+        if (nationality === "Malaysia") {
+          if (race === "Malay") return "Malay";
+          if (race === "Malaysian Chinese") return "Malaysian Chinese";
+          if (race === "Malaysian Indian") return "Malaysian Indian";
+        }
+        return null;
+      };
+
+      const targetCulture = mapToTargetCulture(demographics.nationality, demographics.race);
+
+      // Retrieve RAG data (guidelines, book sections, negative examples) via combined endpoint
+      let ragGuidelines: any[] = [];
+      let ragBookSections: any[] = [];
+      let ragNegativeExamples: any[] = [];
+      
+      try {
+        const ragResponse = await fetch('/api/rag/retrieve-combined', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: ragQuery,
+            guidelinesLimit: 3,
+            bookSectionsLimit: 2,
+            negativeExamplesLimit: 2,
+            targetCulture: targetCulture,
+            personaId: persona,
+            matchThreshold: 0.6
+          })
+        });
+
+        if (ragResponse.ok) {
+          const ragData = await ragResponse.json();
+          ragGuidelines = ragData.guidelines || [];
+          ragBookSections = ragData.bookSections || [];
+          ragNegativeExamples = ragData.negativeExamples || [];
+          console.log(`✅ RAG retrieved: ${ragGuidelines.length} guidelines, ${ragBookSections.length} book sections, ${ragNegativeExamples.length} negative examples`);
+        } else {
+          console.warn('⚠️ Combined RAG retrieval failed, falling back to guidelines only');
+          // Fallback to guidelines only
+          try {
+            const fallbackResponse = await fetch('/api/rag/retrieve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: ragQuery,
+                limit: 3,
+                matchThreshold: 0.6
+              })
+            });
+            if (fallbackResponse.ok) {
+              const fallbackData = await fallbackResponse.json();
+              ragGuidelines = fallbackData.guidelines || [];
+            }
+          } catch (fallbackError) {
+            console.warn('⚠️ Fallback RAG retrieval also failed');
+          }
+        }
+      } catch (ragError) {
+        console.warn('⚠️ RAG retrieval error, continuing without RAG context:', ragError);
+      }
+
+      // Format RAG context for system prompt
+      let ragContext = '';
+      
+      if (ragGuidelines.length > 0) {
+        ragContext += `\n\nCULTURAL GUIDELINES (Apply these based on context):\n${ragGuidelines.map((g: any) => `- ${g.content}`).join('\n')}\n`;
+      }
+      
+      if (ragBookSections.length > 0) {
+        ragContext += `\n\nCULTURAL CONTEXT FROM ACADEMIC SOURCES (Use to inform your communication style):\n${ragBookSections.map((bs: any) => {
+          let citation = `From "${bs.book_title}" by ${bs.book_author}`;
+          if (bs.chapter) citation += ` (${bs.chapter})`;
+          return `${citation}:\n${bs.content}`;
+        }).join('\n\n')}\n\nNote: Use this cultural knowledge to adapt your communication appropriately, but do not explicitly mention these sources or cultural details unless directly relevant to the conversation.\n`;
+      }
+      
+      if (ragNegativeExamples.length > 0) {
+        ragContext += `\n\nNEGATIVE EXAMPLES - WHAT NOT TO DO (Avoid these behaviors):\n${ragNegativeExamples.map((ne: any) => {
+          return `- [${ne.severity.toUpperCase()}] ${ne.content} (Reason: ${ne.reason})`;
+        }).join('\n')}\n\nIMPORTANT: These are examples of inappropriate responses. Do NOT replicate these behaviors.\n`;
+      }
+      
+      if (ragContext) {
+        ragContext += `\nIMPORTANT: When interacting with users:\n- Use formal Malaysian honorifics (Encik/Puan/Tuan) when appropriate, especially at conversation start\n- Use indirect, face-saving language for refusals (avoid blunt "tidak boleh" or "I cannot")\n- End conversations with warm, polite closings beyond simple "thank you"\n- Never make assumptions based on ethnicity, religion, or cultural background\n- Be transparent about being an AI if asked, but frame it politely\n- Adapt formality based on user's language style while maintaining respectful boundaries\n`;
+      }
+
       // Create strong persona-enforcing system prompt
       const systemPrompt = `
 ${personaData.system_prompt}
@@ -203,49 +289,105 @@ FAIRNESS & RESPECT:
 - Do not mention or repeat demographic information
 - Treat all users with equal respect regardless of their background
 
-User Context (use to guide your tone, but don't mention):
+User Context (use to guide your tone, cultural adaptation, and communication style, but don't mention these details explicitly):
+- Nationality: ${demographics.nationality || 'unknown'}
 - Age: ${demographics.age || 'unknown'}
+- Race: ${demographics.race || 'unknown'}
 - Gender: ${demographics.gender || 'unknown'}
-- Role: ${demographics.role || 'unknown'}
 
+IMPORTANT: Use this demographic information to:
+- Adapt your communication style to be culturally appropriate
+- Choose appropriate honorifics and formality levels
+- Understand cultural context for politeness and respect
+- Adapt your tone based on the user's background
+- Be respectful and culturally aware in your responses
+${ragContext}
 Remember: You ARE this persona. Act accordingly.
 `;
 
-      // Use selected model (fairness-trained via Ollama or Gemini)
-      const apiEndpoint = currentModel === 'fairness' ? '/api/trained-model' : '/api/gemini-chat';
-      const requestBody = currentModel === 'fairness' 
-        ? {
-            message: content,
-            system_prompt: systemPrompt,
-            max_tokens: 200,
-            temperature: 0.7
+      // Try fairness model first, fallback to Gemini if it fails
+      let responseText = "";
+      let modelUsed = "";
+      
+      if (currentModel === 'fairness') {
+        try {
+          const fairnessResponse = await fetch('/api/trained-model', {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: content,
+              conversation_history: messages.map(msg => ({
+                role: msg.sender === "user" ? "user" : "assistant",
+                content: msg.content,
+              })),
+              system_prompt: systemPrompt,
+              max_tokens: 200,
+              temperature: 0.7
+            }),
+          });
+
+          if (fairnessResponse.ok) {
+            const fairnessData = await fairnessResponse.json();
+            responseText = fairnessData.response || fairnessData.content || "I apologize, but I couldn't generate a response.";
+            modelUsed = fairnessData.model || "fairness (Ollama)";
+            console.log(`✅ Response generated by: ${modelUsed}`);
+          } else {
+            throw new Error(`Fairness model returned ${fairnessResponse.status}`);
           }
-        : {
+        } catch (error) {
+          console.warn(`⚠️ Fairness model failed, falling back to Gemini:`, error);
+          
+          // Fallback to Gemini
+          const geminiResponse = await fetch('/api/gemini-chat', {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messages: [...messages, userMessage].map(msg => ({
+                role: msg.sender === "user" ? "user" : "assistant",
+                content: msg.content,
+              })),
+              systemPrompt,
+            }),
+          });
+
+          if (!geminiResponse.ok) {
+            throw new Error(`Both fairness and Gemini models failed`);
+          }
+
+          const geminiData = await geminiResponse.json();
+          responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || geminiData.content || "I apologize, but I couldn't generate a response.";
+          modelUsed = "Gemini (fallback)";
+          console.log(`✅ Response generated by: ${modelUsed}`);
+        }
+      } else {
+        // Direct Gemini call
+        const geminiResponse = await fetch('/api/gemini-chat', {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
             messages: [...messages, userMessage].map(msg => ({
               role: msg.sender === "user" ? "user" : "assistant",
               content: msg.content,
             })),
             systemPrompt,
-          };
+          }),
+        });
 
-      const response = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
+        if (!geminiResponse.ok) {
+          throw new Error(`Failed to get response from Gemini model`);
+        }
 
-      if (!response.ok) {
-        throw new Error(`Failed to get response from ${currentModel} model`);
+        const geminiData = await geminiResponse.json();
+        responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || geminiData.content || "I apologize, but I couldn't generate a response.";
+        modelUsed = "Gemini";
+        console.log(`✅ Response generated by: ${modelUsed}`);
       }
-
-      const data = await response.json();
-      
-      // Handle different response formats
-      const responseText = currentModel === 'fairness' 
-        ? data.response || data.content || "I apologize, but I couldn't generate a response."
-        : data.candidates?.[0]?.content?.parts?.[0]?.text || data.content || "I apologize, but I couldn't generate a response.";
 
       const assistantMessage: Message = {
         id: Date.now().toString(),
@@ -352,71 +494,6 @@ Remember: You ARE this persona. Act accordingly.
     router.push("/personas");
   };
 
-  const handleDemographicsSubmit = async (demographics: { age: string; gender: string; role: string }) => {
-    // Format the demographics to match expected format
-    const formatGender = (gender: string) => {
-      const genderMap: { [key: string]: string } = {
-        'Male': 'male',
-        'Female': 'female',
-        'Other': 'other',
-        'Prefer not to say': 'prefer-not-to-say'
-      };
-      return genderMap[gender] || gender.toLowerCase();
-    };
-
-    const formatRole = (role: string) => {
-      const roleMap: { [key: string]: string } = {
-        'Student': 'student',
-        'Professional': 'professional', 
-        'Retiree': 'retiree',
-        'Other': 'other'
-      };
-      return roleMap[role] || role.toLowerCase();
-    };
-
-    // Save to conversations table
-    const { error: conversationError } = await supabase
-      .from("conversations")
-      .update({
-        demographics: {
-          age: demographics.age,
-          gender: formatGender(demographics.gender),
-          role: formatRole(demographics.role)
-        }
-      })
-      .eq("id", conversation);
-    
-    if (conversationError) {
-      console.error("Error saving demographics to conversation:", conversationError);
-      return;
-    }
-    
-    // Save demographics to analytics table
-    const { error: analyticsError } = await supabase
-      .from("demographics")
-      .insert({
-        conversation_id: conversation,
-        persona_id: persona,
-        age: parseInt(demographics.age) || null,
-        gender: demographics.gender,
-        role: demographics.role
-      });
-    
-    if (analyticsError) {
-      console.error("Error saving demographics to analytics:", analyticsError);
-      // Don't return here - we still want to proceed even if analytics fails
-    }
-    
-    // Update local state
-    setDemographics(demographics);
-    setDemographicsCollected(true);
-    setDemographicsFormOpen(false);
-  };
-
-  const handleDemographicsCancel = () => {
-    // Redirect back to personas page if user cancels
-    router.push("/personas");
-  };
 
   return (
     <div className="flex h-screen bg-[#171717]">
@@ -443,54 +520,50 @@ Remember: You ARE this persona. Act accordingly.
       
       {/* Main content wrapper for chat */}
       <div className={`flex-1 flex flex-col h-screen transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'}`}>
-        {demographicsCollected && (
-          <>
-            {/* Persona Header */}
-            <div className="bg-[#171717] border-b border-gray-800 px-6 py-5 flex items-center justify-center">
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={personaData?.avatar_url || undefined} alt={personaData?.title} />
-                  <AvatarFallback>{personaData?.title?.[0]}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <h1 className="text-white text-lg font-semibold">{personaData?.title}</h1>
-                  <p className="text-gray-400 text-sm">{personaData?.description}</p>
-                </div>
-              </div>
+        {/* Persona Header */}
+        <div className="bg-[#171717] border-b border-gray-800 px-6 py-5 flex items-center justify-center">
+          <div className="flex items-center space-x-4">
+            <Avatar className="h-12 w-12">
+              <AvatarImage src={personaData?.avatar_url || undefined} alt={personaData?.title} />
+              <AvatarFallback>{personaData?.title?.[0]}</AvatarFallback>
+            </Avatar>
+            <div>
+              <h1 className="text-white text-lg font-semibold">{personaData?.title}</h1>
+              <p className="text-gray-400 text-sm">{personaData?.description}</p>
             </div>
+          </div>
+        </div>
 
-            {/* Chat messages area - scrollable with proper height */}
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="flex flex-col gap-3 px-8 py-6 max-w-6xl mx-auto w-full">
-                {messages.map((msg) => (
-                  <ChatMessage key={msg.id} message={msg} />
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-[#23232a] text-gray-100 px-4 py-2 rounded-2xl rounded-bl-none">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
-                      </div>
-                    </div>
+        {/* Chat messages area - scrollable with proper height */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex flex-col gap-3 px-8 py-6 max-w-6xl mx-auto w-full">
+            {messages.map((msg) => (
+              <ChatMessage key={msg.id} message={msg} />
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-[#23232a] text-gray-100 px-4 py-2 rounded-2xl rounded-bl-none">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
                   </div>
-                )}
-                {/* Auto-scroll target */}
-                <div ref={messagesEndRef} />
-              </div>
-            </div>
-
-            {/* Fixed chat input at bottom */}
-            <div className="flex-shrink-0 border-t border-gray-800 bg-[#171717] p-4">
-              <div className="max-w-6xl mx-auto w-full">
-                <div className="bg-[#16161a] border border-[#23232a] rounded-2xl p-4">
-                  <ChatInput onSend={sendMessage} isLoading={isLoading} />
                 </div>
               </div>
+            )}
+            {/* Auto-scroll target */}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Fixed chat input at bottom */}
+        <div className="flex-shrink-0 border-t border-gray-800 bg-[#171717] p-4">
+          <div className="max-w-6xl mx-auto w-full">
+            <div className="bg-[#16161a] border border-[#23232a] rounded-2xl p-4">
+              <ChatInput onSend={sendMessage} isLoading={isLoading} />
             </div>
-          </>
-        )}
+          </div>
+        </div>
 
         {/* Flag modal (unchanged) */}
         <Dialog open={flagModalOpen} onOpenChange={setFlagModalOpen}>
@@ -562,12 +635,6 @@ Remember: You ARE this persona. Act accordingly.
           onSkip={handleSkipQuestionnaire}
         />
 
-        {/* Demographics Form */}
-        <DemographicsForm
-          isOpen={demographicsFormOpen}
-          onSubmit={handleDemographicsSubmit}
-          onCancel={handleDemographicsCancel}
-        />
       </div>
     </div>
   );

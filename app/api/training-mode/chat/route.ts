@@ -11,6 +11,9 @@ interface TrainingChatRequest {
   systemPrompt: string; // How the AI should act as the customer
   maxTokens?: number;
   temperature?: number;
+  ragGuidelines?: Array<{ content: string; category?: string }>; // RAG cultural guidelines
+  ragBookSections?: Array<{ book_title: string; book_author: string; chapter?: string; content: string }>; // RAG book sections
+  ragNegativeExamples?: Array<{ content: string; reason: string; severity: string }>; // RAG negative examples
 }
 
 export async function POST(request: NextRequest) {
@@ -21,6 +24,9 @@ export async function POST(request: NextRequest) {
       systemPrompt,
       maxTokens = 150,
       temperature = 0.8,
+      ragGuidelines = [],
+      ragBookSections = [],
+      ragNegativeExamples = [],
     }: TrainingChatRequest = await request.json();
 
     if (!message || !systemPrompt) {
@@ -44,6 +50,31 @@ export async function POST(request: NextRequest) {
       .map((msg) => `${msg.role === "user" ? "Service Provider" : "Customer"}: ${msg.content}`)
       .join("\n");
 
+    // Format RAG context for system prompt
+    let ragContext = '';
+    
+    if (ragGuidelines.length > 0) {
+      ragContext += `\n\nCULTURAL GUIDELINES FOR SERVICE PROVIDER (Use these to evaluate their responses):\n${ragGuidelines.map((g: any) => `- ${g.content}`).join('\n')}\n`;
+    }
+    
+    if (ragBookSections.length > 0) {
+      ragContext += `\n\nCULTURAL CONTEXT FROM ACADEMIC SOURCES (Service provider should know this):\n${ragBookSections.map((bs: any) => {
+        let citation = `From "${bs.book_title}" by ${bs.book_author}`;
+        if (bs.chapter) citation += ` (${bs.chapter})`;
+        return `${citation}:\n${bs.content}`;
+      }).join('\n\n')}\n`;
+    }
+    
+    if (ragNegativeExamples.length > 0) {
+      ragContext += `\n\nNEGATIVE EXAMPLES - WHAT SERVICE PROVIDER SHOULD NOT DO:\n${ragNegativeExamples.map((ne: any) => {
+        return `- [${ne.severity.toUpperCase()}] ${ne.content} (Reason: ${ne.reason})`;
+      }).join('\n')}\n`;
+    }
+    
+    if (ragContext) {
+      ragContext += `\nNote: As the customer, you should notice if the service provider follows these cultural guidelines and avoids negative behaviors. If they don't, you can express dissatisfaction or confusion.\n`;
+    }
+
     const fullPrompt = `${systemPrompt}
 
 You are the CUSTOMER in this conversation. The other person is a SERVICE PROVIDER who is being trained.
@@ -52,7 +83,7 @@ CONVERSATION SO FAR:
 ${conversationContext || "This is the start of the conversation."}
 
 SERVICE PROVIDER: ${message}
-
+${ragContext}
 CUSTOMER (you):`;
 
     const response = await fetch(

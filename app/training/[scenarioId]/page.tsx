@@ -459,6 +459,76 @@ export default function TrainingSessionPage({
     setUserResponses((prev) => [...prev, newUserResponse]);
 
     try {
+      // Build RAG query based on user demographics and conversation context
+      const recentMessages = updatedMessages.slice(-3).map(msg => msg.content).join(" ") + " " + userMessageContent;
+      const ragQuery = userProfile?.nationality && userProfile?.race 
+        ? `${recentMessages} cultural context for ${userProfile.nationality} ${userProfile.race} user`
+        : recentMessages;
+
+      // Map nationality/race to target culture for book sections
+      const mapToTargetCulture = (nationality?: string, race?: string): string | null => {
+        if (!nationality) return null;
+        if (nationality === "Sweden") return "Swedish";
+        if (nationality === "Malaysia") {
+          if (race === "Malay") return "Malay";
+          if (race === "Malaysian Chinese") return "Malaysian Chinese";
+          if (race === "Malaysian Indian") return "Malaysian Indian";
+        }
+        return null;
+      };
+
+      const targetCulture = mapToTargetCulture(userProfile?.nationality, userProfile?.race);
+
+      // Retrieve RAG data (guidelines, book sections, negative examples) via combined endpoint
+      let ragGuidelines: any[] = [];
+      let ragBookSections: any[] = [];
+      let ragNegativeExamples: any[] = [];
+      
+      try {
+        const ragResponse = await fetch('/api/rag/retrieve-combined', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: ragQuery,
+            guidelinesLimit: 3,
+            bookSectionsLimit: 2,
+            negativeExamplesLimit: 2,
+            targetCulture: targetCulture,
+            personaId: null, // Training mode doesn't have a specific persona
+            matchThreshold: 0.6
+          })
+        });
+
+        if (ragResponse.ok) {
+          const ragData = await ragResponse.json();
+          ragGuidelines = ragData.guidelines || [];
+          ragBookSections = ragData.bookSections || [];
+          ragNegativeExamples = ragData.negativeExamples || [];
+          console.log(`✅ RAG retrieved for training: ${ragGuidelines.length} guidelines, ${ragBookSections.length} book sections, ${ragNegativeExamples.length} negative examples`);
+        } else {
+          console.warn('⚠️ Combined RAG retrieval failed in training mode, falling back to guidelines only');
+          // Fallback to guidelines only
+          try {
+            const fallbackResponse = await fetch('/api/rag/retrieve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: ragQuery,
+                limit: 3,
+                matchThreshold: 0.6
+              })
+            });
+            if (fallbackResponse.ok) {
+              const fallbackData = await fallbackResponse.json();
+              ragGuidelines = fallbackData.guidelines || [];
+            }
+          } catch (fallbackError) {
+            console.warn('⚠️ Fallback RAG retrieval also failed in training mode');
+          }
+        }
+      } catch (ragError) {
+        console.warn('⚠️ RAG retrieval error in training mode, continuing without RAG context:', ragError);
+      }
 
       // Get AI's next response - use updatedMessages which includes the user's message
       const conversationHistory = updatedMessages.map((msg) => ({
@@ -480,6 +550,9 @@ export default function TrainingSessionPage({
           systemPrompt: scenario.systemPrompt,
           language: currentLanguage,
           userContext: userProfile || undefined,
+          ragGuidelines: ragGuidelines,
+          ragBookSections: ragBookSections,
+          ragNegativeExamples: ragNegativeExamples,
         }),
       });
 
