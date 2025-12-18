@@ -94,13 +94,3 @@ Thumbs.db
 *.swp
 *.swo
 *~
-
-# Project docs (keep local only)
-*.md
-
-# Local helper scripts and migrations (not needed in GitHub)
-scripts/
-supabase/migrations/*.sql
-
-books/
-fine_tuning/data/*.code-workspace

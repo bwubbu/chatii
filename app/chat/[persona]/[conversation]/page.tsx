@@ -15,9 +15,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import FeedbackQuestionnaire from "@/components/feedback/FeedbackQuestionnaire";
 import DemographicsForm from "@/components/chat/DemographicsForm";
-import { formatGuidelinesForPrompt, formatBookSectionsForPrompt, mapUserToTargetCulture, retrieveCombinedRAG } from "@/lib/rag-helper";
-import { getMalayLanguageInstructions } from "@/lib/malay-language-helper";
-import { useLanguage } from "@/components/LanguageContext";
 
 
 interface Message {
@@ -40,13 +37,7 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [messages, setMessages] = useState<Message[]>([]);
   const [personaData, setPersonaData] = useState<Persona | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [demographics, setDemographics] = useState<{ age?: string; gender?: string; rating?: number; feedback?: string }>({});
-  const [userProfile, setUserProfile] = useState<{
-    nationality?: string;
-    age?: number;
-    race?: string;
-    gender?: string;
-  } | null>(null);
+  const [demographics, setDemographics] = useState<{ age?: string; gender?: string; role?: string; rating?: number; feedback?: string }>({});
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flagModalOpen, setFlagModalOpen] = useState(false);
@@ -57,7 +48,6 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [demographicsFormOpen, setDemographicsFormOpen] = useState(false);
   const [demographicsCollected, setDemographicsCollected] = useState(false);
   const [currentModel, setCurrentModel] = useState<'gemini' | 'fairness'>('fairness'); // Default to fairness model
-  const { language: currentLanguage, setLanguage } = useLanguage(); // Use global language context
   
   // Add ref for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -71,59 +61,7 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
     fetchPersona();
     fetchMessages();
     fetchDemographics();
-    loadUserProfile();
   }, [persona, conversation]);
-
-  const loadUserProfile = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("nationality, age, race, gender")
-          .eq("user_id", user.id)
-          .single();
-
-        if (profile) {
-          const profileData = {
-            nationality: profile.nationality || undefined,
-            age: profile.age || undefined,
-            race: profile.race || undefined,
-            gender: profile.gender || undefined,
-          };
-          setUserProfile(profileData);
-          
-          // If user has gender in profile, automatically set demographics for conversation
-          if (profile.gender) {
-            setDemographics({
-              age: profile.age?.toString(),
-              gender: profile.gender,
-            });
-            // Save to conversation if not already saved
-            supabase
-              .from("conversations")
-              .update({
-                demographics: {
-                  age: profile.age?.toString(),
-                  gender: profile.gender,
-                }
-              })
-              .eq("id", conversation)
-              .then(({ error }) => {
-                if (error) {
-                  console.error("Error saving demographics to conversation:", error);
-                }
-              });
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error loading user profile:", error);
-    }
-  };
 
   useEffect(() => {
     // Check if demographics are already collected for this conversation
@@ -140,7 +78,9 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
       }
       
       const hasDemographics = data.demographics && 
-        data.demographics.gender;
+        data.demographics.age && 
+        data.demographics.gender && 
+        data.demographics.role;
       
       if (hasDemographics) {
         setDemographicsCollected(true);
@@ -237,25 +177,7 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
     });
 
     try {
-      // Retrieve relevant Malaysian guidelines and book sections using combined RAG (more efficient)
-      const conversationContext = messages.slice(-3).map(m => m.content).join(' ') + ' ' + content;
-      const targetCulture = mapUserToTargetCulture(userProfile?.nationality, userProfile?.race);
-      
-      // Single API call that retrieves both guidelines and book sections
-      const { guidelines, bookSections } = await retrieveCombinedRAG(
-        conversationContext,
-        3, // guidelines limit
-        2, // book sections limit
-        targetCulture
-      );
-      
-      const guidelinesPrompt = formatGuidelinesForPrompt(guidelines);
-      const bookSectionsPrompt = formatBookSectionsForPrompt(bookSections);
-      
-      // Get Malay language instructions if Malay is selected
-      const malayInstructions = getMalayLanguageInstructions(currentLanguage);
-
-      // Create strong persona-enforcing system prompt with Malaysian guidelines and language
+      // Create strong persona-enforcing system prompt
       const systemPrompt = `
 ${personaData.system_prompt}
 
@@ -274,21 +196,17 @@ RESPONSE GUIDELINES:
 - Add appropriate emojis to show personality and emotion 😊 💪 ✨
 - Use markdown formatting for better readability
 - Respond as if you are genuinely this persona having a real conversation
-${malayInstructions}
+
 FAIRNESS & RESPECT:
 - Always respond in a fair, polite, and respectful manner
 - Adapt your tone to suit the user appropriately
 - Do not mention or repeat demographic information
 - Treat all users with equal respect regardless of their background
-${guidelinesPrompt}
-${bookSectionsPrompt}
+
 User Context (use to guide your tone, but don't mention):
-- Age: ${demographics.age || userProfile?.age || 'unknown'}
-- Gender: ${demographics.gender || userProfile?.gender || 'unknown'}
-${userProfile?.nationality ? `- Nationality: ${userProfile.nationality}` : ''}
-${userProfile?.race ? `- Race: ${userProfile.race}` : ''}
-- Adapt your tone, formality, and cultural references based on the user's background
-- Be respectful and culturally aware in your responses
+- Age: ${demographics.age || 'unknown'}
+- Gender: ${demographics.gender || 'unknown'}
+- Role: ${demographics.role || 'unknown'}
 
 Remember: You ARE this persona. Act accordingly.
 `;
@@ -298,10 +216,6 @@ Remember: You ARE this persona. Act accordingly.
       const requestBody = currentModel === 'fairness' 
         ? {
             message: content,
-            conversation_history: messages.map(msg => ({
-              role: msg.sender === "user" ? "user" : "assistant",
-              content: msg.content,
-            })),
             system_prompt: systemPrompt,
             max_tokens: 200,
             temperature: 0.7
@@ -438,7 +352,7 @@ Remember: You ARE this persona. Act accordingly.
     router.push("/personas");
   };
 
-  const handleDemographicsSubmit = async (demographics: { age?: string; gender: string }) => {
+  const handleDemographicsSubmit = async (demographics: { age: string; gender: string; role: string }) => {
     // Format the demographics to match expected format
     const formatGender = (gender: string) => {
       const genderMap: { [key: string]: string } = {
@@ -450,18 +364,24 @@ Remember: You ARE this persona. Act accordingly.
       return genderMap[gender] || gender.toLowerCase();
     };
 
-    // Use age from profile if not provided, or from demographics
-    const ageToUse = demographics.age || userProfile?.age?.toString() || null;
-    // Use gender from profile if available, otherwise from form
-    const genderToUse = userProfile?.gender || formatGender(demographics.gender);
+    const formatRole = (role: string) => {
+      const roleMap: { [key: string]: string } = {
+        'Student': 'student',
+        'Professional': 'professional', 
+        'Retiree': 'retiree',
+        'Other': 'other'
+      };
+      return roleMap[role] || role.toLowerCase();
+    };
 
     // Save to conversations table
     const { error: conversationError } = await supabase
       .from("conversations")
       .update({
         demographics: {
-          age: ageToUse,
-          gender: genderToUse
+          age: demographics.age,
+          gender: formatGender(demographics.gender),
+          role: formatRole(demographics.role)
         }
       })
       .eq("id", conversation);
@@ -477,8 +397,9 @@ Remember: You ARE this persona. Act accordingly.
       .insert({
         conversation_id: conversation,
         persona_id: persona,
-        age: ageToUse ? parseInt(ageToUse) : null,
-        gender: genderToUse
+        age: parseInt(demographics.age) || null,
+        gender: demographics.gender,
+        role: demographics.role
       });
     
     if (analyticsError) {
@@ -487,10 +408,7 @@ Remember: You ARE this persona. Act accordingly.
     }
     
     // Update local state
-    setDemographics({ 
-      age: ageToUse || undefined, 
-      gender: genderToUse 
-    });
+    setDemographics(demographics);
     setDemographicsCollected(true);
     setDemographicsFormOpen(false);
   };
@@ -519,8 +437,6 @@ Remember: You ARE this persona. Act accordingly.
         <ConversationSidebar 
         currentModel={currentModel}
         onModelChange={setCurrentModel}
-        currentLanguage={currentLanguage}
-        onLanguageChange={setLanguage}
         onEndChat={handleEndChat}
       />
       </div>
@@ -547,7 +463,7 @@ Remember: You ARE this persona. Act accordingly.
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="flex flex-col gap-3 px-8 py-6 max-w-6xl mx-auto w-full">
                 {messages.map((msg) => (
-                  <ChatMessage key={msg.id} message={msg} conversationId={conversation} />
+                  <ChatMessage key={msg.id} message={msg} />
                 ))}
                 {isLoading && (
                   <div className="flex justify-start">
@@ -651,7 +567,6 @@ Remember: You ARE this persona. Act accordingly.
           isOpen={demographicsFormOpen}
           onSubmit={handleDemographicsSubmit}
           onCancel={handleDemographicsCancel}
-          defaultAge={userProfile?.age}
         />
       </div>
     </div>

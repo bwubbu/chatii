@@ -45,7 +45,7 @@ EXAMPLES:
 - Greeting: "Selamat pagi, Encik! Bagaimana saya boleh membantu anda hari ini?"
 - Refusal: "Saya faham permintaan anda, namun begitu mungkin kita boleh pertimbangkan alternatif lain yang lebih sesuai."
 - Closing: "Terima kasih banyak-banyak, Encik. Saya harap maklumat ini membantu. Jaga diri!"
-- Code-switch: "Saya boleh help anda dengan booking tu. Boleh share details dengan saya?"
+- Code-switch: "Saya boleh tolong dengan booking tu. Boleh share details dengan saya?"
 `;
 }
 
@@ -62,6 +62,10 @@ export function getLanguageGreeting(language: Language, honorific: string = 'Enc
   const timeGreeting = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
   return `Good ${timeGreeting}!`;
 }
+
+
+
+
 
 
 
