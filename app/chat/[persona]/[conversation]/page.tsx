@@ -43,7 +43,6 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [flagReason, setFlagReason] = useState("");
   const [flagLoading, setFlagLoading] = useState(false);
   const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
-  const [showEndChatOptions, setShowEndChatOptions] = useState(false);
   
   // Add ref for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -415,7 +414,8 @@ Remember: You ARE this persona. Act accordingly.
   };
 
   const handleEndChat = () => {
-    setShowEndChatOptions(true);
+    // Go directly to questionnaire (user can skip if they want)
+    setQuestionnaireOpen(true);
   };
 
   const handleQuestionnaireSubmit = async (responses: any) => {
@@ -565,39 +565,6 @@ Remember: You ARE this persona. Act accordingly.
           </DialogContent>
         </Dialog>
         
-        {/* End Chat Options Dialog */}
-        <Dialog open={showEndChatOptions} onOpenChange={setShowEndChatOptions}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>End Chat</DialogTitle>
-              <DialogDescription>
-                Would you like to help us improve by answering a short questionnaire?
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowEndChatOptions(false);
-                  router.push("/personas");
-                }}
-                className="flex-1"
-              >
-                No, Thanks
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowEndChatOptions(false);
-                  setQuestionnaireOpen(true);
-                }}
-                className="flex-1"
-              >
-                Yes, Help Improve
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         {/* Feedback Questionnaire */}
         <FeedbackQuestionnaire
           isOpen={questionnaireOpen}

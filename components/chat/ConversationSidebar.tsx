@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { LanguageToggle } from "@/components/chat/LanguageToggle";
 
 interface Conversation {
   id: string;
@@ -38,12 +37,10 @@ interface ConversationWithPersona {
 }
 
 interface ConversationSidebarProps {
-  currentLanguage?: 'english' | 'malay';
-  onLanguageChange?: (language: 'english' | 'malay') => void;
   onEndChat?: () => void;
 }
 
-export function ConversationSidebar({ currentLanguage, onLanguageChange, onEndChat }: ConversationSidebarProps) {
+export function ConversationSidebar({ onEndChat }: ConversationSidebarProps) {
   const [personaGroups, setPersonaGroups] = useState<PersonaGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const router = useRouter();
@@ -125,17 +122,8 @@ export function ConversationSidebar({ currentLanguage, onLanguageChange, onEndCh
   return (
     <div className="w-80 h-full border-r border-gray-800 bg-[#171717] flex flex-col">
       {/* Controls Section */}
-      {(currentLanguage && onLanguageChange && onEndChat) && (
-        <div className="p-4 border-b border-gray-800 space-y-3">
-          {currentLanguage && onLanguageChange && (
-            <div>
-              <label className="text-sm font-medium text-gray-300 mb-2 block">Language</label>
-              <LanguageToggle 
-                currentLanguage={currentLanguage}
-                onLanguageChange={onLanguageChange}
-              />
-            </div>
-          )}
+      {onEndChat && (
+        <div className="p-4 border-b border-gray-800">
           <Button
             variant="destructive"
             size="sm"
