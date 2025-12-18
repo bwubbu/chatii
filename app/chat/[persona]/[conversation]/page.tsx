@@ -470,20 +470,20 @@ Remember: You ARE this persona. Act accordingly.
 
   return (
     <div className="flex h-screen bg-[#171717]">
-      {/* Burger button that floats with proper spacing */}
+      {/* Burger button that floats with proper spacing - positioned below navbar */}
       <button
         className={`fixed z-40 p-3 rounded-lg bg-[#23232a] text-white shadow-lg hover:bg-[#2a2a32] transition-all duration-300 ${
           sidebarOpen ? 'left-[340px]' : 'left-6'
         }`}
-        style={{ top: '20px' }}
+        style={{ top: '100px' }}
         onClick={() => setSidebarOpen((open) => !open)}
         aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
       >
         <Menu className="w-6 h-6" />
       </button>
       
-      {/* Sidebar (collapsible on all screens) */}
-      <div className={`fixed left-0 z-30 transition-all duration-300 bg-[#171717] border-r border-gray-800 ${sidebarOpen ? 'w-80' : 'w-0'} overflow-hidden`} style={{ top: 0, height: '100vh' }}>
+      {/* Sidebar (collapsible on all screens) - positioned below navbar */}
+      <div className={`fixed left-0 z-30 transition-all duration-300 bg-[#171717] border-r border-gray-800 ${sidebarOpen ? 'w-80' : 'w-0'} overflow-hidden`} style={{ top: '80px', height: 'calc(100vh - 80px)' }}>
         <ConversationSidebar
         onEndChat={handleEndChat}
       />

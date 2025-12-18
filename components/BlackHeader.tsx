@@ -23,7 +23,7 @@ export default function BlackHeader() {
   const [navOpen, setNavOpen] = useState(false)
 
   return (
-<header className="relative z-10 flex items-center justify-between p-6 lg:px-12 bg-[#171717]">
+    <header className="relative z-50 flex items-center justify-between p-6 lg:px-12 bg-[#171717]">
       <div className="text-2xl font-bold text-white flex items-center space-x-2">
         <span>RamahAI</span>
         <MessageCircle className="w-5 h-5 text-white/60" />
