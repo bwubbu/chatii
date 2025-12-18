@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import FeedbackQuestionnaire from "@/components/feedback/FeedbackQuestionnaire";
+import { useLanguage } from "@/components/LanguageContext";
 
 
 interface Message {
@@ -43,6 +44,7 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [flagReason, setFlagReason] = useState("");
   const [flagLoading, setFlagLoading] = useState(false);
   const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
+  const { language } = useLanguage();
   
   // Add ref for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -261,6 +263,11 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
         ragContext += `\nIMPORTANT: When interacting with users:\n- Use formal Malaysian honorifics (Encik/Puan/Tuan) when appropriate, especially at conversation start\n- Use indirect, face-saving language for refusals (avoid blunt "tidak boleh" or "I cannot")\n- End conversations with warm, polite closings beyond simple "thank you"\n- Never make assumptions based on ethnicity, religion, or cultural background\n- Be transparent about being an AI if asked, but frame it politely\n- Adapt formality based on user's language style while maintaining respectful boundaries\n`;
       }
 
+      // Language instruction based on selected language
+      const languageInstruction = language === 'malay' 
+        ? `\nLANGUAGE REQUIREMENT:\n- You MUST respond in Bahasa Malaysia (Malay) for ALL your responses\n- Use proper Malay grammar and vocabulary\n- Use appropriate Malay honorifics (Encik, Puan, Tuan, Cik)\n- Maintain the persona's character while speaking in Malay\n- If the user switches to English, you can respond in English, but if they use Malay, always respond in Malay\n`
+        : `\nLANGUAGE REQUIREMENT:\n- You MUST respond in English for ALL your responses\n- Use proper English grammar and vocabulary\n- Maintain the persona's character while speaking in English\n- If the user switches to Malay, you can respond in Malay, but if they use English, always respond in English\n`;
+
       // Create strong persona-enforcing system prompt
       const systemPrompt = `
 ${personaData.system_prompt}
@@ -280,7 +287,7 @@ RESPONSE GUIDELINES:
 - Add appropriate emojis to show personality and emotion 😊 💪 ✨
 - Use markdown formatting for better readability
 - Respond as if you are genuinely this persona having a real conversation
-
+${languageInstruction}
 FAIRNESS & RESPECT:
 - Always respond in a fair, polite, and respectful manner
 - Adapt your tone to suit the user appropriately
