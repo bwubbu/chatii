@@ -94,3 +94,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Documentation files (keep local only)
+*.md
+!README.md
