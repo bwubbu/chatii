@@ -12,3 +12,8 @@ COMMENT ON COLUMN training_sessions.conversation_history IS 'Stores the full con
 
 
 
+
+
+
+
+

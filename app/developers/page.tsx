@@ -13,7 +13,6 @@ import {
   Key, 
   Copy, 
   Shield, 
-  Users,
   ArrowRight,
   CheckCircle,
   AlertCircle,
@@ -49,11 +48,10 @@ export default function DeveloperPortal() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
-  const [selectedPersona, setSelectedPersona] = useState<string>("all");
+  const [selectedPersona, setSelectedPersona] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
-  const [copiedPersonaId, setCopiedPersonaId] = useState<string | null>(null);
   const [submitMessage, setSubmitMessage] = useState("");
 
   useEffect(() => {
@@ -103,6 +101,11 @@ export default function DeveloperPortal() {
       return;
     }
 
+    if (!selectedPersona) {
+      setSubmitMessage("Please select a persona for your API key");
+      return;
+    }
+
     setIsGenerating(true);
     setSubmitMessage("");
 
@@ -121,7 +124,7 @@ export default function DeveloperPortal() {
         },
         body: JSON.stringify({ 
           name: newKeyName.trim(),
-          persona_id: selectedPersona === "all" ? null : selectedPersona
+          persona_id: selectedPersona
         })
       });
 
@@ -130,7 +133,7 @@ export default function DeveloperPortal() {
       if (response.ok) {
         setGeneratedKey(data.api_key);
         setNewKeyName("");
-        setSelectedPersona("all");
+        setSelectedPersona("");
         await fetchApiKeys();
       } else {
         setSubmitMessage(data.error || "Failed to generate API key");
@@ -178,12 +181,6 @@ export default function DeveloperPortal() {
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
-  const copyPersonaId = (personaId: string) => {
-    navigator.clipboard.writeText(personaId);
-    setCopiedPersonaId(personaId);
-    setTimeout(() => setCopiedPersonaId(null), 2000);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0f0f10] via-[#1a1a1f] to-[#23232a] flex items-center justify-center">
@@ -224,18 +221,7 @@ export default function DeveloperPortal() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <Card className="bg-[#23232a] border-gray-700">
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Users className="w-8 h-8 text-green-400 mr-3" />
-                <div>
-                  <div className="text-2xl font-bold text-white">{personas.length}</div>
-                  <div className="text-gray-400">Available Personas</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-6 mb-12">
           <Card className="bg-[#23232a] border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center">
@@ -251,8 +237,8 @@ export default function DeveloperPortal() {
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 bg-[#23232a] border-gray-700">
-            <TabsTrigger value="overview" className="text-gray-400 data-[state=active]:text-white">Getting Started</TabsTrigger>
-            <TabsTrigger value="api-keys" className="text-gray-400 data-[state=active]:text-white">API Keys & Personas</TabsTrigger>
+            <TabsTrigger value="overview" className="text-white data-[state=active]:bg-white data-[state=active]:text-[#23232a] data-[state=active]:font-semibold">Getting Started</TabsTrigger>
+            <TabsTrigger value="api-keys" className="text-white data-[state=active]:bg-white data-[state=active]:text-[#23232a] data-[state=active]:font-semibold">API Keys & Personas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="api-keys" className="space-y-6">
@@ -279,20 +265,17 @@ export default function DeveloperPortal() {
                   <p className="text-sm text-gray-400">Give your API key a descriptive name to identify it later</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="persona" className="text-gray-300">Select Persona (Optional)</Label>
-                  <Select value={selectedPersona} onValueChange={setSelectedPersona}>
+                  <Label htmlFor="persona" className="text-gray-300">Select Persona <span className="text-red-400">*</span></Label>
+                  <Select value={selectedPersona} onValueChange={setSelectedPersona} required>
                     <SelectTrigger className="bg-[#23232a] border-gray-700 text-white">
-                      <SelectValue placeholder="All Personas (default)" />
+                      <SelectValue placeholder="Choose a persona..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#23232a] border-gray-700">
-                      <SelectItem value="all" className="text-white hover:bg-[#1a1a1f] focus:bg-[#1a1a1f]">
-                        All Personas (default)
-                      </SelectItem>
+                    <SelectContent className="bg-[#23232a] border-gray-700 [&_*]:text-white">
                       {personas.map((persona) => (
                         <SelectItem 
                           key={persona.id} 
                           value={persona.id}
-                          className="text-white hover:bg-[#1a1a1f] focus:bg-[#1a1a1f]"
+                          className="text-white !text-white hover:bg-[#1a1a1f] focus:bg-[#1a1a1f] focus:text-white focus:!text-white data-[highlighted]:bg-[#1a1a1f] data-[highlighted]:text-white data-[highlighted]:!text-white cursor-pointer [&>span]:text-white"
                         >
                           {persona.name}
                         </SelectItem>
@@ -300,13 +283,13 @@ export default function DeveloperPortal() {
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-gray-400">
-                    Choose a specific persona for this key, or leave as "All Personas" to access any persona
+                    Each API key is tied to a specific persona. You'll need to generate separate keys for different personas.
                   </p>
                 </div>
                 <Button 
                   onClick={generateApiKey} 
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white" 
-                  disabled={isGenerating || !newKeyName.trim()}
+                  disabled={isGenerating || !newKeyName.trim() || !selectedPersona}
                 >
                   {isGenerating ? "Generating..." : "Generate API Key"}
                   <Key className="w-4 h-4 ml-2" />
@@ -447,10 +430,10 @@ export default function DeveloperPortal() {
                       2
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-white mb-2">Choose a Persona</h3>
+                      <h3 className="font-semibold text-white mb-2">Select a Persona</h3>
                       <p className="text-gray-300 text-sm">
-                        Browse available personas in the "API Keys & Personas" tab. Each persona is a specialized AI character trained for fairness and respect. 
-                        Examples include fitness trainers, hotel receptionists, and more.
+                        When generating your API key, you'll need to select a specific persona. Each API key is tied to one persona, 
+                        so you'll need separate keys for different personas. The persona ID is embedded in your API key, so you don't need to specify it in your requests.
                       </p>
                     </div>
                   </div>
@@ -467,7 +450,6 @@ export default function DeveloperPortal() {
                       <pre className="bg-[#23232a] p-3 rounded text-xs text-green-400 overflow-x-auto border border-gray-700">
 {`{
   "message": "Hello!",
-  "persona_id": "persona-uuid",
   "user_demographics": {
     "age": "25",
     "role": "student"
@@ -475,7 +457,9 @@ export default function DeveloperPortal() {
 }`}
                       </pre>
                       <p className="text-gray-300 text-sm mt-2">
-                        Include your API key in the Authorization header: <code className="bg-[#23232a] px-2 py-1 rounded text-xs text-gray-300 border border-gray-700">Bearer pk_fairness_...</code>
+                        Include your API key in the Authorization header: <code className="bg-[#23232a] px-2 py-1 rounded text-xs text-gray-300 border border-gray-700">Bearer sk_...</code>
+                        <br />
+                        <span className="text-yellow-400 text-xs">Note: The persona ID is automatically determined from your API key, so you don't need to include it in the request body.</span>
                       </p>
                     </div>
                   </div>
@@ -509,60 +493,6 @@ export default function DeveloperPortal() {
               </CardContent>
             </Card>
 
-            <Card className="bg-[#1a1a1f]/80 border-gray-700 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-white">Available Personas</CardTitle>
-                <CardDescription className="text-gray-400">Browse and use these fairness-trained AI personas in your applications</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {personas.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Users className="w-12 h-12 mx-auto text-gray-600 mb-4" />
-                    <p className="text-gray-400">No personas available yet</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {personas.map((persona) => (
-                      <Card key={persona.id} className="bg-[#23232a] border-gray-700">
-                        <CardHeader>
-                          <CardTitle className="flex items-center justify-between text-white">
-                            {persona.name}
-                            <Badge variant="outline" className="border-green-500 text-green-400">
-                              Fairness Trained
-                            </Badge>
-                          </CardTitle>
-                          <CardDescription className="text-gray-400">{persona.description}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="p-4 bg-[#23232a] rounded-lg border border-gray-700">
-                            <p className="text-sm text-gray-300 mb-2">
-                              Use this persona ID in your API calls:
-                            </p>
-                            <div className="flex items-center space-x-2">
-                              <code className="flex-1 bg-[#1a1a1f] px-3 py-2 rounded text-xs text-green-400 font-mono border border-gray-700">
-                                {persona.id}
-                              </code>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => copyPersonaId(persona.id)}
-                                className="text-gray-400 hover:text-white hover:bg-gray-700/50"
-                              >
-                                {copiedPersonaId === persona.id ? (
-                                  <CheckCircle className="w-4 h-4 text-green-400" />
-                                ) : (
-                                  <Copy className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>

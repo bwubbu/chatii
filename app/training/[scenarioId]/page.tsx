@@ -495,7 +495,7 @@ export default function TrainingSessionPage({
             negativeExamplesLimit: 2,
             targetCulture: targetCulture,
             personaId: null, // Training mode doesn't have a specific persona
-            matchThreshold: 0.6
+            matchThreshold: 0.3
           })
         });
 
@@ -515,7 +515,7 @@ export default function TrainingSessionPage({
               body: JSON.stringify({
                 query: ragQuery,
                 limit: 3,
-                matchThreshold: 0.6
+                matchThreshold: 0.3
               })
             });
             if (fallbackResponse.ok) {
@@ -604,15 +604,73 @@ export default function TrainingSessionPage({
       } else {
         // Handle error response
         const errorData = await aiResponse.json().catch(() => ({ error: "Unknown error" }));
-        console.error("AI response error:", errorData);
+        console.error("AI response error:", {
+          status: aiResponse.status,
+          statusText: aiResponse.statusText,
+          error: errorData
+        });
+        
+        // Extract detailed error message
+        let errorMessage = "I apologize, but I'm having trouble responding right now.";
+        
+        // Extract error message from various possible locations (recursively handles nested objects)
+        const extractErrorMessage = (obj: any, depth = 0): string | null => {
+          if (depth > 3) return null; // Prevent infinite recursion
+          if (!obj) return null;
+          if (typeof obj === 'string') return obj;
+          if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
+          if (obj.message && typeof obj.message === 'string') return obj.message;
+          if (obj.error) {
+            if (typeof obj.error === 'string') return obj.error;
+            return extractErrorMessage(obj.error, depth + 1);
+          }
+          if (obj.details) {
+            if (typeof obj.details === 'string') return obj.details;
+            if (obj.details.message && typeof obj.details.message === 'string') return obj.details.message;
+            if (obj.details.error) {
+              if (typeof obj.details.error === 'string') return obj.details.error;
+              return extractErrorMessage(obj.details.error, depth + 1);
+            }
+          }
+          return null;
+        };
+        
+        const mainError = extractErrorMessage(errorData);
+        if (mainError) {
+          errorMessage += ` ${mainError}`;
+        }
+        
+        // Add finish reason if present
+        if (errorData.details?.finishReason && typeof errorData.details.finishReason === 'string') {
+          errorMessage += ` (Reason: ${errorData.details.finishReason})`;
+        }
+        
+        // Add status code if available
+        if (errorData.status && typeof errorData.status === 'number') {
+          if (errorData.status === 401) {
+            errorMessage += " The API key may be invalid or expired.";
+          } else if (errorData.status === 429) {
+            errorMessage += " The service is currently rate-limited. Please try again in a moment.";
+          } else if (errorData.status >= 500) {
+            errorMessage += " The AI service is experiencing issues.";
+          }
+        }
+        
+        // If we still don't have a specific error, add a generic message
+        if (!mainError && !errorData.details?.finishReason) {
+          errorMessage += " Please try again later.";
+        } else {
+          errorMessage += " Please try again.";
+        }
+        
         // Show error message to user
-        const errorMessage: Message = {
+        const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: `I apologize, but I'm having trouble responding right now. ${errorData.error || errorData.details?.error || "Please try again."}`,
+          content: errorMessage,
           timestamp: new Date(),
         };
-        const finalMessages = [...updatedMessages, errorMessage];
+        const finalMessages = [...updatedMessages, errorMsg];
         setMessages(finalMessages);
         await saveConversationHistory(finalMessages);
       }

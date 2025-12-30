@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { 
   BarChart2, User, MessageCircle, Download, Activity, Users, Flag, ListChecks, 
   PlusCircle, Pencil, Trash2, Shield, Heart, Brain, TrendingUp, AlertTriangle,
-  CheckCircle, Clock, Target, Zap, Eye, ThumbsUp, Star, UserCheck, Key, Copy
+  CheckCircle, Clock, Target, Zap, Eye, ThumbsUp, Star, UserCheck, Key,
+  Mail, X, Check
 } from "lucide-react"
 import { Line, Bar, Doughnut, Radar } from "react-chartjs-2"
 import {
@@ -89,13 +90,15 @@ interface AnalyticsData {
 interface APIKey {
   id: string;
   name: string;
-  key: string;
+  key?: string;
   created_at: string;
   usage_count: number;
   rate_limit: number;
   user_id?: string;
+  user_email?: string;
   last_used?: string;
   is_active?: boolean;
+  persona_id?: string;
 }
 
 export default function AdminPage() {
@@ -108,8 +111,9 @@ export default function AdminPage() {
   const [isPersonaFormOpen, setIsPersonaFormOpen] = useState(false)
   const [editingPersona, setEditingPersona] = useState<PersonaFormData | null>(null)
   const [apiKeys, setApiKeys] = useState<APIKey[]>([])
-  const [newKeyName, setNewKeyName] = useState("")
-  const [copiedKey, setCopiedKey] = useState("")
+  const [personaRequests, setPersonaRequests] = useState<any[]>([])
+  const [editingRequest, setEditingRequest] = useState<any>(null)
+  const [adminNotes, setAdminNotes] = useState("")
   const router = useRouter()
 
   useEffect(() => {
@@ -135,6 +139,9 @@ export default function AdminPage() {
       }
       if (activeTab === "api-keys") {
         fetchAPIKeys()
+      }
+      if (activeTab === "persona-requests") {
+        fetchPersonaRequests()
       }
     }
   }, [user, activeTab])
@@ -359,53 +366,28 @@ export default function AdminPage() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        let data: any;
+        try {
+          const responseText = await response.text();
+          if (!responseText || responseText.trim().length === 0) {
+            console.error("Empty response from API keys endpoint");
+            return;
+          }
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error("Failed to parse API keys response:", parseError);
+          return;
+        }
         setApiKeys(data.apiKeys || []);
       } else {
-        console.error("Failed to fetch API keys");
+        const errorText = await response.text().catch(() => "Unknown error");
+        console.error("Failed to fetch API keys:", response.status, errorText);
       }
     } catch (error) {
       console.error("Error fetching API keys:", error);
     }
   };
 
-  const generateAPIKey = async () => {
-    if (!newKeyName.trim()) return;
-    
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        alert("Please log in to generate API keys");
-        return;
-      }
-
-      const response = await fetch("/api/api-keys", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: newKeyName.trim(),
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Refresh the API keys list
-        await fetchAPIKeys();
-        setNewKeyName("");
-        // Show success message with the new key
-        alert(`API key generated successfully!\n\nKey: ${data.api_key}\n\nPlease copy and save this key - it won't be shown again.`);
-      } else {
-        const error = await response.json();
-        alert(`Failed to generate API key: ${error.error}`);
-      }
-    } catch (error: any) {
-      console.error("Error generating API key:", error);
-      alert(`Error: ${error.message}`);
-    }
-  };
 
   const deleteAPIKey = async (keyId: string) => {
     if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) {
@@ -441,10 +423,65 @@ export default function AdminPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(text);
-    setTimeout(() => setCopiedKey(""), 2000);
+
+  const fetchPersonaRequests = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch("/api/persona-requests", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPersonaRequests(data.requests || []);
+      } else {
+        console.error("Failed to fetch persona requests:", response.status);
+      }
+    } catch (error) {
+      console.error("Error fetching persona requests:", error);
+    }
+  };
+
+  const updatePersonaRequest = async (requestId: string, status: string, notes?: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert("Please log in to update requests");
+        return;
+      }
+
+      const response = await fetch("/api/persona-requests", {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          requestId,
+          status,
+          admin_notes: notes || adminNotes || null,
+        }),
+      });
+
+      if (response.ok) {
+        await fetchPersonaRequests();
+        setEditingRequest(null);
+        setAdminNotes("");
+        alert("Request updated successfully");
+      } else {
+        const error = await response.json();
+        alert(`Failed to update request: ${error.error}`);
+      }
+    } catch (error: any) {
+      console.error("Error updating persona request:", error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   if (loading) {
@@ -588,6 +625,16 @@ export default function AdminPage() {
             }`}
           >
             <Brain className="w-4 h-4 mr-2" /> AI Training
+          </button>
+          <button 
+            onClick={() => setActiveTab("persona-requests")}
+            className={`flex items-center px-4 py-2 rounded-md transition-colors ${
+              activeTab === "persona-requests" 
+                ? "bg-green-600 text-white font-medium" 
+                : "text-gray-400 hover:text-white hover:bg-gray-800"
+            }`}
+          >
+            <Mail className="w-4 h-4 mr-2" /> Persona Requests
           </button>
         </div>
 
@@ -1062,50 +1109,36 @@ export default function AdminPage() {
               </Badge>
             </div>
             
-            <div className="space-y-6">
-              {/* Generate New API Key */}
-              <Card className="bg-[#1a1a1f] border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white">Generate New API Key</CardTitle>
-                  <CardDescription className="text-gray-400">Create a new API key for a user or project</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="keyName" className="text-gray-300">Project/User Name</Label>
-                    <Input
-                      id="keyName"
-                      placeholder="e.g., John's Mobile App"
-                      value={newKeyName}
-                      onChange={(e) => setNewKeyName(e.target.value)}
-                      className="bg-[#171717] border-gray-600 text-white"
-                    />
+            {/* Existing API Keys */}
+            <Card className="bg-[#1a1a1f] border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white">Active API Keys</CardTitle>
+                <CardDescription className="text-gray-400">Manage existing API keys and monitor usage</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {apiKeys.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Key className="w-12 h-12 mx-auto text-gray-600 mb-4" />
+                    <p className="text-gray-400 mb-2">No API keys generated yet</p>
+                    <p className="text-sm text-gray-500">Generate API keys through the developers portal</p>
                   </div>
-                  <Button onClick={generateAPIKey} className="w-full bg-green-600 hover:bg-green-700">
-                    <Key className="w-4 h-4 mr-2" />
-                    Generate API Key
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Existing API Keys */}
-              <Card className="bg-[#1a1a1f] border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white">Active API Keys</CardTitle>
-                  <CardDescription className="text-gray-400">Manage existing API keys and monitor usage</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {apiKeys.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Key className="w-12 h-12 mx-auto text-gray-600 mb-4" />
-                      <p className="text-gray-400 mb-2">No API keys generated yet</p>
-                      <p className="text-sm text-gray-500">Generate your first API key above to get started</p>
-                    </div>
-                  ) : (
+                ) : (
                     <div className="space-y-4">
                       {apiKeys.map((key) => (
                         <div key={key.id} className="flex items-center justify-between p-4 bg-[#171717] rounded-lg border border-gray-600">
                           <div className="flex-1">
-                            <h3 className="font-semibold text-white">{key.name}</h3>
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-white">{key.name}</h3>
+                              <Badge 
+                                variant={key.usage_count >= key.rate_limit ? "destructive" : "default"}
+                                className={key.usage_count >= key.rate_limit ? "" : "bg-green-600"}
+                              >
+                                {key.usage_count >= key.rate_limit ? "Limit Reached" : "Active"}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-300 mb-1">
+                              <span className="text-gray-400">User:</span> {key.user_email || 'Unknown'}
+                            </p>
                             <p className="text-sm text-gray-400">
                               Created: {new Date(key.created_at).toLocaleDateString()}
                             </p>
@@ -1117,31 +1150,8 @@ export default function AdminPage() {
                             <p className="text-sm text-gray-400">
                               Usage: {key.usage_count}/{key.rate_limit} requests/hour
                             </p>
-                            <div className="mt-2 flex items-center space-x-2">
-                              <code className="bg-black p-2 rounded text-sm text-green-400 font-mono">
-                                {key.key.substring(0, 20)}...
-                              </code>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => copyToClipboard(key.key)}
-                                className="hover:bg-blue-500/10"
-                              >
-                                {copiedKey === key.key ? (
-                                  <CheckCircle className="w-4 h-4 text-green-400" />
-                                ) : (
-                                  <Copy className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </div>
                           </div>
                           <div className="ml-4 flex items-center space-x-2">
-                            <Badge 
-                              variant={key.usage_count >= key.rate_limit ? "destructive" : "default"}
-                              className={key.usage_count >= key.rate_limit ? "" : "bg-green-600"}
-                            >
-                              {key.usage_count >= key.rate_limit ? "Limit Reached" : "Active"}
-                            </Badge>
                             <Button
                               size="sm"
                               variant="destructive"
@@ -1155,9 +1165,8 @@ export default function AdminPage() {
                       ))}
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
@@ -1215,6 +1224,182 @@ export default function AdminPage() {
         {/* Bias Detection Info Tab */}
         {activeTab === "bias-info" && (
           <BiasDetectionInfo />
+        )}
+
+        {/* Persona Requests Tab */}
+        {activeTab === "persona-requests" && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Persona Requests</h2>
+              <Badge variant="outline" className="border-blue-500 text-blue-400">
+                {personaRequests.filter(r => r.status === 'pending').length} Pending
+              </Badge>
+            </div>
+            <Card className="bg-[#1a1a1f] border-gray-700">
+              <CardContent className="p-6">
+                {personaRequests.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Mail className="w-12 h-12 mx-auto text-gray-600 mb-4" />
+                    <p className="text-gray-400 mb-2">No persona requests yet</p>
+                    <p className="text-sm text-gray-500">Users can request new personas from the personas page</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-gray-400">User</TableHead>
+                        <TableHead className="text-gray-400">Persona Name</TableHead>
+                        <TableHead className="text-gray-400">Description</TableHead>
+                        <TableHead className="text-gray-400">Status</TableHead>
+                        <TableHead className="text-gray-400">Date</TableHead>
+                        <TableHead className="text-gray-400 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {personaRequests.map(request => (
+                        <TableRow key={request.id} className="hover:bg-gray-800/50">
+                          <TableCell className="text-gray-300">{request.user_email || 'Unknown'}</TableCell>
+                          <TableCell className="font-medium text-white">{request.persona_name}</TableCell>
+                          <TableCell className="text-gray-300 max-w-xs truncate">{request.description}</TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={
+                                request.status === 'approved' ? 'default' :
+                                request.status === 'rejected' ? 'destructive' :
+                                request.status === 'completed' ? 'default' :
+                                'secondary'
+                              }
+                              className={
+                                request.status === 'pending' ? 'bg-yellow-600' :
+                                request.status === 'approved' ? 'bg-blue-600' :
+                                request.status === 'completed' ? 'bg-green-600' :
+                                ''
+                              }
+                            >
+                              {request.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-gray-400">
+                            {new Date(request.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              {request.status === 'pending' && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => updatePersonaRequest(request.id, 'approved')}
+                                    className="hover:bg-green-500/10"
+                                  >
+                                    <Check className="h-4 w-4 text-green-400" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => updatePersonaRequest(request.id, 'rejected')}
+                                    className="hover:bg-red-500/10"
+                                  >
+                                    <X className="h-4 w-4 text-red-400" />
+                                  </Button>
+                                </>
+                              )}
+                              {request.status === 'approved' && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => updatePersonaRequest(request.id, 'completed')}
+                                  className="hover:bg-green-500/10"
+                                >
+                                  <CheckCircle className="h-4 w-4 text-green-400" />
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingRequest(request);
+                                  setAdminNotes(request.admin_notes || '');
+                                }}
+                                className="hover:bg-blue-500/10"
+                              >
+                                <Pencil className="h-4 w-4 text-blue-400" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Edit Request Modal */}
+            {editingRequest && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <Card className="bg-[#1a1a1f] border-gray-700 w-full max-w-2xl m-4">
+                  <CardHeader>
+                    <CardTitle className="text-white">Edit Persona Request</CardTitle>
+                    <CardDescription className="text-gray-400">
+                      Update status and add admin notes
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label className="text-gray-300">Persona Name</Label>
+                      <p className="text-white font-medium">{editingRequest.persona_name}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-300">Description</Label>
+                      <p className="text-gray-300">{editingRequest.description}</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="status" className="text-gray-300">Status</Label>
+                      <select
+                        id="status"
+                        value={editingRequest.status}
+                        onChange={(e) => setEditingRequest({...editingRequest, status: e.target.value})}
+                        className="w-full bg-[#171717] border-gray-600 text-white rounded-md px-3 py-2 mt-1"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="adminNotes" className="text-gray-300">Admin Notes</Label>
+                      <textarea
+                        id="adminNotes"
+                        value={adminNotes}
+                        onChange={(e) => setAdminNotes(e.target.value)}
+                        className="w-full bg-[#171717] border-gray-600 text-white rounded-md px-3 py-2 mt-1 min-h-[100px]"
+                        placeholder="Add notes about this request..."
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingRequest(null);
+                          setAdminNotes("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => updatePersonaRequest(editingRequest.id, editingRequest.status, adminNotes)}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        Save Changes
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Persona Form Modal */}

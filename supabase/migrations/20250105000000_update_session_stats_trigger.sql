@@ -67,3 +67,8 @@ CREATE TRIGGER update_training_session_stats_trigger
 
 
 
+
+
+
+
+
