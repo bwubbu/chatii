@@ -1,17 +1,21 @@
 "use client"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Home, Users, MessageCircle, Shield, Menu, X, Code2, Target, Globe, Languages } from "lucide-react"
-import { usePathname } from "next/navigation"
+import { Home, Users, Shield, Menu, X, Code2, Target, Globe, Languages, User, LogOut } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
 import { useUser } from "@/components/UserContext"
 import { useLanguage } from "@/components/LanguageContext"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { useState } from "react"
+import { supabase } from "@/supabaseClient"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 
 const ADMIN_EMAIL = "kyrodahero123@gmail.com"
@@ -20,14 +24,26 @@ export default function BlackHeader() {
   const { user, loading } = useUser()
   const { language, setLanguage } = useLanguage()
   const pathname = usePathname()
+  const router = useRouter()
   const [navOpen, setNavOpen] = useState(false)
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push("/login")
+  }
 
   return (
     <header className="relative z-50 flex items-center justify-between p-6 lg:px-12 bg-[#171717]">
-      <div className="text-2xl font-bold text-white flex items-center space-x-2">
+      <Link href="/" className="text-2xl font-bold text-white flex items-center space-x-2 hover:opacity-80 transition-opacity">
+        <Image 
+          src="/icon-dark.png" 
+          alt="RamahAI Logo" 
+          width={32} 
+          height={32}
+          className="w-8 h-8"
+        />
         <span>RamahAI</span>
-        <MessageCircle className="w-5 h-5 text-white/60" />
-      </div>
+      </Link>
       {/* Desktop Nav */}
       <nav className="hidden md:flex items-center space-x-8">
         <Link
@@ -121,65 +137,98 @@ export default function BlackHeader() {
           </div>
         )}
       </div>
-      {/* Language Selector & Auth */}
+      {/* Auth Buttons/User */}
       <div className="flex items-center gap-4">
-        {/* Language Selector */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-gray-400 hover:text-white flex items-center gap-2"
-            >
-              <Globe className="w-4 h-4" />
-              <span className="hidden sm:inline">
-                {language === "malay" ? "Bahasa" : "English"}
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="bg-[#23232a] border-gray-700">
-            <DropdownMenuItem
-              onClick={() => setLanguage("english")}
-              className={`cursor-pointer ${
-                language === "english"
-                  ? "bg-blue-600/20 text-blue-400"
-                  : "text-gray-300 hover:bg-gray-800"
-              }`}
-            >
-              <Languages className="w-4 h-4 mr-2" />
-              English
-              {language === "english" && (
-                <span className="ml-auto text-xs">✓</span>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => setLanguage("malay")}
-              className={`cursor-pointer ${
-                language === "malay"
-                  ? "bg-purple-600/20 text-purple-400"
-                  : "text-gray-300 hover:bg-gray-800"
-              }`}
-            >
-              <Languages className="w-4 h-4 mr-2" />
-              Bahasa Malaysia
-              {language === "malay" && (
-                <span className="ml-auto text-xs">✓</span>
-              )}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Auth Buttons/User */}
         {loading ? (
           <Button variant="secondary" className="bg-white/90 text-gray-900" disabled>Loading...</Button>
         ) : user ? (
-          <Link href="/dashboard" className="flex items-center space-x-3 group">
-            <span className="text-white text-lg font-bold group-hover:underline">{user.user_metadata?.username || user.email}</span>
-            <Avatar className="h-12 w-12 border-2 border-white">
-              <AvatarImage src={user.user_metadata?.avatar_url || undefined} alt="Profile" />
-              <AvatarFallback>{user.user_metadata?.username?.[0] || "U"}</AvatarFallback>
-            </Avatar>
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-gray-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500/50">
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-semibold text-white leading-tight">
+                    {user.user_metadata?.username || user.email?.split('@')[0] || 'User'}
+                  </p>
+                  <p className="text-xs text-gray-400 leading-tight truncate max-w-[120px]">
+                    {user.email}
+                  </p>
+                </div>
+                <Avatar className="h-10 w-10 border-2 border-green-500/50 ring-2 ring-green-500/20">
+                  <AvatarImage src={user.user_metadata?.avatar_url || undefined} alt="Profile" />
+                  <AvatarFallback className="bg-gradient-to-br from-green-400 to-blue-500 text-white font-semibold text-sm">
+                    {(user.user_metadata?.username?.[0] || user.email?.[0] || "U").toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 bg-[#1a1a1f] border-gray-700">
+              <DropdownMenuLabel className="px-3 py-2">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10 border-2 border-green-500/50">
+                    <AvatarImage src={user.user_metadata?.avatar_url || undefined} alt="Profile" />
+                    <AvatarFallback className="bg-gradient-to-br from-green-400 to-blue-500 text-white font-semibold">
+                      {(user.user_metadata?.username?.[0] || user.email?.[0] || "U").toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">
+                      {user.user_metadata?.username || 'User'}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-gray-700" />
+              <DropdownMenuItem asChild className="text-gray-200 hover:bg-gray-800 cursor-pointer">
+                <Link href="/dashboard" className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  <span>Profile</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-gray-700" />
+              <DropdownMenuLabel className="px-3 py-2 text-xs text-gray-400 font-normal">
+                Language
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setLanguage("english")}
+                className={`cursor-pointer ${
+                  language === "english"
+                    ? "bg-blue-600/20 text-blue-400"
+                    : "text-gray-200 hover:bg-gray-800"
+                }`}
+              >
+                <Globe className="w-4 h-4 mr-2" />
+                <span>English</span>
+                {language === "english" && (
+                  <span className="ml-auto text-xs">✓</span>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setLanguage("malay")}
+                className={`cursor-pointer ${
+                  language === "malay"
+                    ? "bg-purple-600/20 text-purple-400"
+                    : "text-gray-200 hover:bg-gray-800"
+                }`}
+              >
+                <Globe className="w-4 h-4 mr-2" />
+                <span>Bahasa Malaysia</span>
+                {language === "malay" && (
+                  <span className="ml-auto text-xs">✓</span>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-gray-700" />
+              <DropdownMenuItem 
+                onClick={handleLogout}
+                className="text-red-400 hover:bg-red-500/10 cursor-pointer focus:text-red-400"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                <span>Logout</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
           <div className="flex space-x-2">
             <Button asChild variant="secondary" className="bg-white/90 text-gray-900 hover:bg-white">
