@@ -54,6 +54,7 @@ export default function PersonasPage() {
     const { data, error } = await supabase
       .from("personas")
       .select("*")
+      .eq("is_active", true)
       .order("title");
 
     if (error) {

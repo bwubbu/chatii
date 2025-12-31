@@ -11,7 +11,10 @@ export function PersonasTab() {
 
   useEffect(() => {
     const fetchPersonas = async () => {
-      const { data, error } = await supabase.from("personas").select("*");
+      const { data, error } = await supabase
+        .from("personas")
+        .select("*")
+        .eq("is_active", true);
       if (!error) setPersonas(data || []);
     };
     fetchPersonas();
