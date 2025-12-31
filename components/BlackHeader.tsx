@@ -1,6 +1,5 @@
 "use client"
 import Link from "next/link"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Home, Users, Shield, Menu, X, Code2, Target, Globe, Languages, User, LogOut } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
@@ -40,7 +39,7 @@ export default function BlackHeader() {
   return (
     <header className="relative z-50 flex items-center justify-between p-6 lg:px-12 bg-[#171717]">
       <Link href="/" className="text-2xl font-bold text-white flex items-center space-x-2 hover:opacity-80 transition-opacity">
-        <Image 
+        <img 
           src="/icon-dark.png" 
           alt="RamahAI Logo" 
           width={32} 
