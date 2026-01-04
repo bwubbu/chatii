@@ -47,8 +47,10 @@ export default function ForgotPasswordPage() {
     setIsLoading(true)
     setError(null)
     try {
+      // Use environment variable if available, otherwise use window.location.origin
+      const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, '') // Remove trailing slash
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${baseUrl}/reset-password`,
       })
       if (error) {
         setError(error.message)
@@ -67,8 +69,10 @@ export default function ForgotPasswordPage() {
     setIsLoading(true)
     setError(null)
     try {
+      // Use environment variable if available, otherwise use window.location.origin
+      const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, '') // Remove trailing slash
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${baseUrl}/reset-password`,
       })
       if (error) {
         setError(error.message)

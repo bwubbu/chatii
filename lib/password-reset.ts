@@ -16,8 +16,12 @@ export async function sendPasswordResetEmail(email: string) {
     // Store token (in production, store in database)
     resetTokens.set(token, { email, expires })
 
-    // Create reset URL
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=${token}`
+    // Create reset URL - use environment variable with proper fallback
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 
+                    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
+                    process.env.NEXT_PUBLIC_BASE_URL || 
+                    "http://localhost:3000")).replace(/\/$/, '') // Remove trailing slash
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`
 
     // In production, you would send an actual email here
     // For demo purposes, we'll just log the reset URL
