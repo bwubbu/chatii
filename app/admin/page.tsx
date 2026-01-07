@@ -7,10 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { 
   BarChart2, User, MessageCircle, Download, Activity, Users, Flag, ListChecks, 
-  PlusCircle, Pencil, Trash2, Shield, Heart, Brain, TrendingUp, AlertTriangle,
+  PlusCircle, Pencil, Trash2, Shield, Heart, Brain, TrendingUp, TrendingDown, AlertTriangle,
   CheckCircle, Clock, Target, Zap, Eye, ThumbsUp, Star, UserCheck, Key,
   Mail, X, Check, Power, PowerOff, Ban
 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
 import { Line, Bar, Doughnut, Radar } from "react-chartjs-2"
 import {
   Chart as ChartJS,
@@ -36,6 +40,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PersonaForm, PersonaFormData } from "@/components/personas/PersonaForm"
+import { TrainingScenarioForm, TrainingScenarioFormData } from "@/components/training/TrainingScenarioForm"
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement, BarElement,
@@ -113,6 +118,37 @@ export default function AdminPage() {
   const [personaRequests, setPersonaRequests] = useState<any[]>([])
   const [editingRequest, setEditingRequest] = useState<any>(null)
   const [adminNotes, setAdminNotes] = useState("")
+  const [trainingScenarios, setTrainingScenarios] = useState<any[]>([])
+  const [isTrainingScenarioFormOpen, setIsTrainingScenarioFormOpen] = useState(false)
+  const [editingTrainingScenario, setEditingTrainingScenario] = useState<TrainingScenarioFormData | null>(null)
+  
+  // Export training data state
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportSuccess, setExportSuccess] = useState(false)
+  
+  // Export flagged messages state
+  const [isExportingFlagged, setIsExportingFlagged] = useState(false)
+  const [exportFlaggedError, setExportFlaggedError] = useState<string | null>(null)
+  const [exportFlaggedSuccess, setExportFlaggedSuccess] = useState(false)
+  const [selectedSeverity, setSelectedSeverity] = useState<string>('all')
+  const [scoreFilter, setScoreFilter] = useState<'high' | 'low' | 'custom'>('high')
+  const [customMinScore, setCustomMinScore] = useState<string>('')
+  const [customMaxScore, setCustomMaxScore] = useState<string>('')
+  const [selectedPersonaForExport, setSelectedPersonaForExport] = useState<string>('all')
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date())
+  
+  // Training data insights
+  const [trainingDataInsights, setTrainingDataInsights] = useState<{
+    total: number
+    highQuality: number
+    lowQuality: number
+    mediumQuality: number
+    avgScore: number
+  } | null>(null)
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false)
+  
   const router = useRouter()
 
   useEffect(() => {
@@ -135,12 +171,17 @@ export default function AdminPage() {
       }
       if (activeTab === "moderation") {
         fetchFlaggedMessages()
+        fetchPersonas()
+        fetchTrainingDataInsights()
       }
       if (activeTab === "api-keys") {
         fetchAPIKeys()
       }
       if (activeTab === "persona-requests") {
         fetchPersonaRequests()
+      }
+      if (activeTab === "training-scenarios") {
+        fetchTrainingScenarios()
       }
     }
   }, [user, activeTab])
@@ -341,6 +382,244 @@ export default function AdminPage() {
     }
   }
 
+  const fetchTrainingDataInsights = async () => {
+    setIsLoadingInsights(true)
+    try {
+      // Build date filter
+      const startDateStr = startDate ? startDate.toISOString().split('T')[0] : undefined
+      const endDateStr = endDate ? endDate.toISOString().split('T')[0] : undefined
+      
+      // Build query
+      let query = supabase
+        .from("feedback_questionnaire")
+        .select("politeness, fairness, respectfulness, trustworthiness, competence, likeability")
+      
+      if (startDateStr) {
+        query = query.gte("created_at", startDateStr)
+      }
+      if (endDateStr) {
+        query = query.lte("created_at", endDateStr)
+      }
+      if (selectedPersonaForExport && selectedPersonaForExport !== 'all') {
+        query = query.eq("persona_id", selectedPersonaForExport)
+      }
+      
+      const { data: feedbackData, error } = await query
+      
+      if (error) {
+        console.error("Error fetching training insights:", error)
+        return
+      }
+      
+      if (!feedbackData || feedbackData.length === 0) {
+        setTrainingDataInsights({
+          total: 0,
+          highQuality: 0,
+          lowQuality: 0,
+          mediumQuality: 0,
+          avgScore: 0
+        })
+        return
+      }
+      
+      // Calculate insights
+      let totalScore = 0
+      let highQualityCount = 0
+      let lowQualityCount = 0
+      let mediumQualityCount = 0
+      
+      feedbackData.forEach((f: any) => {
+        const avgScore = (
+          (f.politeness || 0) +
+          (f.fairness || 0) +
+          (f.respectfulness || 0) +
+          (f.trustworthiness || 0) +
+          (f.competence || 0) +
+          (f.likeability || 0)
+        ) / 6
+        
+        totalScore += avgScore
+        
+        if (avgScore >= 4.0) {
+          highQualityCount++
+        } else if (avgScore < 2.5) {
+          lowQualityCount++
+        } else {
+          mediumQualityCount++
+        }
+      })
+      
+      setTrainingDataInsights({
+        total: feedbackData.length,
+        highQuality: highQualityCount,
+        lowQuality: lowQualityCount,
+        mediumQuality: mediumQualityCount,
+        avgScore: totalScore / feedbackData.length
+      })
+    } catch (error) {
+      console.error("Error fetching training insights:", error)
+    } finally {
+      setIsLoadingInsights(false)
+    }
+  }
+
+  // Update insights when filters change
+  useEffect(() => {
+    if (activeTab === "moderation") {
+      fetchTrainingDataInsights()
+    }
+  }, [startDate, endDate, selectedPersonaForExport, activeTab])
+
+  const handleExportTrainingData = async () => {
+    setIsExporting(true)
+    setExportError(null)
+    setExportSuccess(false)
+
+    try {
+      // Build query parameters
+      const params = new URLSearchParams()
+      
+      // Determine score range based on filter
+      if (scoreFilter === 'high') {
+        params.append('minScore', '4.0')
+      } else if (scoreFilter === 'low') {
+        params.append('maxScore', '2.5')
+      } else if (scoreFilter === 'custom') {
+        if (customMinScore) {
+          params.append('minScore', customMinScore)
+        }
+        if (customMaxScore) {
+          params.append('maxScore', customMaxScore)
+        }
+      }
+
+      // Add date range
+      if (startDate) {
+        params.append('startDate', startDate.toISOString().split('T')[0])
+      }
+      if (endDate) {
+        params.append('endDate', endDate.toISOString().split('T')[0])
+      }
+
+      // Add persona filter
+      if (selectedPersonaForExport && selectedPersonaForExport !== 'all') {
+        params.append('personaId', selectedPersonaForExport)
+      }
+
+      // Get session token for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('You must be logged in to export data')
+      }
+
+      // Call export API with auth token
+      const response = await fetch(`/api/export-feedback?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Export failed')
+      }
+
+      // Download the file
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `feedback_training_data_${new Date().toISOString().split('T')[0]}.jsonl`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      setExportSuccess(true)
+      setTimeout(() => setExportSuccess(false), 5000)
+    } catch (error: any) {
+      console.error("Export error:", error)
+      setExportError(error.message || "Failed to export data")
+      setTimeout(() => setExportError(null), 5000)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleExportFlaggedMessages = async () => {
+    setIsExportingFlagged(true)
+    setExportFlaggedError(null)
+    setExportFlaggedSuccess(false)
+
+    try {
+      // Build query parameters
+      const params = new URLSearchParams()
+      
+      // Add date range
+      if (startDate) {
+        params.append('startDate', startDate.toISOString().split('T')[0])
+      }
+      if (endDate) {
+        params.append('endDate', endDate.toISOString().split('T')[0])
+      }
+
+      // Add persona filter
+      if (selectedPersonaForExport && selectedPersonaForExport !== 'all') {
+        params.append('personaId', selectedPersonaForExport)
+      }
+
+      // Add severity filter
+      if (selectedSeverity && selectedSeverity !== 'all') {
+        params.append('severity', selectedSeverity)
+      }
+
+      // Only export resolved/approved flags
+      params.append('status', 'resolved')
+
+      // Get session token for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('You must be logged in to export data')
+      }
+
+      // Call export API with auth token
+      const response = await fetch(`/api/export-flagged-messages?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Export failed')
+      }
+
+      // Download the file
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `flagged_messages_negative_examples_${new Date().toISOString().split('T')[0]}.jsonl`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      setExportFlaggedSuccess(true)
+      setTimeout(() => setExportFlaggedSuccess(false), 5000)
+    } catch (error: any) {
+      console.error("Export flagged messages error:", error)
+      setExportFlaggedError(error.message || "Failed to export flagged messages")
+      setTimeout(() => setExportFlaggedError(null), 5000)
+    } finally {
+      setIsExportingFlagged(false)
+    }
+  }
+
   const fetchFlaggedMessages = async () => {
     console.log('Fetching flagged messages...')
     const { data, error } = await supabase
@@ -523,6 +802,115 @@ export default function AdminPage() {
     }
   }
 
+  const fetchTrainingScenarios = async () => {
+    const { data, error } = await supabase
+      .from("training_scenarios")
+      .select(`
+        *,
+        personas (
+          id,
+          title
+        )
+      `)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("Error fetching training scenarios:", error)
+    } else {
+      setTrainingScenarios(data || [])
+    }
+  }
+
+  const handleTrainingScenarioSubmit = async (data: TrainingScenarioFormData) => {
+    const scenarioData: any = {
+      title: data.title,
+      description: data.description,
+      scenario_type: data.scenario_type,
+      difficulty_level: data.difficulty_level,
+      initial_message: data.initial_message,
+      system_prompt: data.system_prompt,
+      expected_behaviors: data.expected_behaviors,
+      persona_id: data.persona_id || null,
+      is_active: data.is_active,
+    }
+
+    if (editingTrainingScenario && editingTrainingScenario.id) {
+      const { error } = await supabase
+        .from("training_scenarios")
+        .update(scenarioData)
+        .eq("id", editingTrainingScenario.id)
+
+      if (error) {
+        console.error("Error updating training scenario:", error)
+        alert("Failed to update training scenario")
+      } else {
+        setIsTrainingScenarioFormOpen(false)
+        setEditingTrainingScenario(null)
+        fetchTrainingScenarios()
+      }
+    } else {
+      const { error } = await supabase
+        .from("training_scenarios")
+        .insert(scenarioData)
+
+      if (error) {
+        console.error("Error creating training scenario:", error)
+        alert("Failed to create training scenario")
+      } else {
+        setIsTrainingScenarioFormOpen(false)
+        fetchTrainingScenarios()
+      }
+    }
+  }
+
+  const handleEditTrainingScenario = (scenario: any) => {
+    const formData: TrainingScenarioFormData = {
+      id: scenario.id,
+      title: scenario.title,
+      description: scenario.description || "",
+      scenario_type: scenario.scenario_type,
+      difficulty_level: scenario.difficulty_level,
+      initial_message: scenario.initial_message,
+      system_prompt: scenario.system_prompt,
+      expected_behaviors: scenario.expected_behaviors || [],
+      persona_id: scenario.persona_id || null,
+      is_active: scenario.is_active,
+    }
+    setEditingTrainingScenario(formData)
+    setIsTrainingScenarioFormOpen(true)
+  }
+
+  const handleDeleteTrainingScenario = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this training scenario? This action cannot be undone.")) {
+      return
+    }
+    const { error } = await supabase
+      .from("training_scenarios")
+      .delete()
+      .eq("id", id)
+
+    if (error) {
+      console.error("Error deleting training scenario:", error)
+      alert("Failed to delete training scenario")
+    } else {
+      fetchTrainingScenarios()
+    }
+  }
+
+  const handleToggleTrainingScenarioStatus = async (scenario: any) => {
+    const { error } = await supabase
+      .from("training_scenarios")
+      .update({ is_active: !scenario.is_active })
+      .eq("id", scenario.id)
+
+    if (error) {
+      console.error("Error toggling training scenario status:", error)
+      alert("Failed to update training scenario status")
+    } else {
+      fetchTrainingScenarios()
+    }
+  }
+
   const fetchAPIKeys = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -656,11 +1044,25 @@ export default function AdminPage() {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-white">Loading...</div>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0f0f10] via-[#1a1a1f] to-[#23232a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+          <p className="mt-4 text-gray-400">Loading admin dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!analyticsData) {
-    return <div className="min-h-screen flex items-center justify-center text-white">Loading analytics...</div>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0f0f10] via-[#1a1a1f] to-[#23232a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+          <p className="mt-4 text-gray-400">Loading analytics...</p>
+        </div>
+      </div>
+    )
   }
 
   // Chart configurations
@@ -738,6 +1140,16 @@ export default function AdminPage() {
             <Users className="w-4 h-4 mr-2" /> Personas
           </button>
           <button 
+            onClick={() => setActiveTab("training-scenarios")}
+            className={`flex items-center px-4 py-2 rounded-md transition-colors ${
+              activeTab === "training-scenarios" 
+                ? "bg-green-600 text-white font-medium" 
+                : "text-gray-400 hover:text-white hover:bg-gray-800"
+            }`}
+          >
+            <Target className="w-4 h-4 mr-2" /> Training Scenarios
+          </button>
+          <button 
             onClick={() => setActiveTab("api-keys")}
             className={`flex items-center px-4 py-2 rounded-md transition-colors ${
               activeTab === "api-keys" 
@@ -755,7 +1167,7 @@ export default function AdminPage() {
                 : "text-gray-400 hover:text-white hover:bg-gray-800"
             }`}
           >
-            <Flag className="w-4 h-4 mr-2" /> Moderation
+            <Flag className="w-4 h-4 mr-2" /> Data & Training
           </button>
           <button 
             onClick={() => setActiveTab("persona-requests")}
@@ -1297,18 +1709,91 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Moderation Tab */}
+        {/* Moderation & Training Data Tab */}
         {activeTab === "moderation" && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-3xl font-bold text-white mb-2">Content Moderation</h2>
-                <p className="text-gray-400">Review and manage flagged messages</p>
+                <h2 className="text-3xl font-bold text-white mb-2">Data Collection & Training</h2>
+                <p className="text-gray-400">Review flagged messages and export training data</p>
               </div>
               <Badge variant="outline" className="border-red-500 text-red-400">
                 {flaggedMessages.filter(m => m.status === 'pending').length} Pending
               </Badge>
             </div>
+
+            {/* Training Data Insights */}
+            {isLoadingInsights ? (
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : trainingDataInsights && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="bg-[#1a1a1f] border-gray-700">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-400">Total Feedback</CardTitle>
+                    <MessageCircle className="h-4 w-4 text-blue-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-white">{trainingDataInsights.total}</div>
+                    <p className="text-xs text-gray-400">Conversations with feedback</p>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-[#1a1a1f] border-gray-700">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-400">High Quality</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-green-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-400">{trainingDataInsights.highQuality}</div>
+                    <p className="text-xs text-gray-400">Score ≥ 4.0</p>
+                    {trainingDataInsights.total > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {((trainingDataInsights.highQuality / trainingDataInsights.total) * 100).toFixed(1)}%
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-[#1a1a1f] border-gray-700">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-400">Low Quality</CardTitle>
+                    <TrendingDown className="h-4 w-4 text-red-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-400">{trainingDataInsights.lowQuality}</div>
+                    <p className="text-xs text-gray-400">Score &lt; 2.5</p>
+                    {trainingDataInsights.total > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {((trainingDataInsights.lowQuality / trainingDataInsights.total) * 100).toFixed(1)}%
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-[#1a1a1f] border-gray-700">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-400">Average Score</CardTitle>
+                    <Star className="h-4 w-4 text-yellow-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-white">
+                      {trainingDataInsights.avgScore.toFixed(2)}
+                    </div>
+                    <p className="text-xs text-gray-400">Out of 5.0</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Content Moderation Section */}
+            <div>
+              <h3 className="text-2xl font-bold text-white mb-4">Content Moderation</h3>
 
             {flaggedMessages.length === 0 ? (
               <Card className="bg-[#1a1a1f] border-gray-700">
@@ -1425,6 +1910,222 @@ export default function AdminPage() {
                 })}
               </div>
             )}
+            </div>
+
+            {/* Export Flagged Messages Section */}
+            <Card className="bg-[#1a1a1f] border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-400" />
+                  Export Flagged Messages (Negative Examples)
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Export resolved flagged messages as negative training examples. These show what the chatbot should NOT do.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Severity Filter */}
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Severity Filter (Optional)</Label>
+                  <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Severities</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Note about date range and persona */}
+                <div className="bg-yellow-900/30 border border-yellow-600/60 rounded-lg p-3">
+                  <p className="text-sm text-yellow-50">
+                    <strong className="text-yellow-100 font-semibold">Note:</strong> Uses the same date range and persona filters as the positive examples export below.
+                    Only exports flagged messages with status "resolved" (approved for training).
+                  </p>
+                </div>
+
+                {/* Export Button and Status */}
+                <div className="flex items-center gap-4 pt-2">
+                  <Button
+                    onClick={handleExportFlaggedMessages}
+                    disabled={isExportingFlagged}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {isExportingFlagged ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Negative Examples
+                      </>
+                    )}
+                  </Button>
+                  {exportFlaggedSuccess && (
+                    <span className="text-green-400 text-sm">Export successful! File downloaded.</span>
+                  )}
+                  {exportFlaggedError && (
+                    <span className="text-red-400 text-sm">{exportFlaggedError}</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Export Training Data Section */}
+            <Card className="bg-[#1a1a1f] border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Download className="w-5 h-5" />
+                  Export Positive Training Data
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Export feedback data with conversations for fine-tuning. Filter by quality scores, date range, and persona.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Score Filter */}
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Score Range</Label>
+                  <Select value={scoreFilter} onValueChange={(value: 'high' | 'low' | 'custom') => setScoreFilter(value)}>
+                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="high">High Quality (≥ 4.0)</SelectItem>
+                      <SelectItem value="low">Low Quality (&lt; 2.5)</SelectItem>
+                      <SelectItem value="custom">Custom Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {scoreFilter === 'custom' && (
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Label className="text-gray-400 text-sm">Min Score</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="5"
+                          step="0.1"
+                          value={customMinScore}
+                          onChange={(e) => setCustomMinScore(e.target.value)}
+                          className="bg-[#23232a] border-gray-600 text-white"
+                          placeholder="0.0"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-gray-400 text-sm">Max Score</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="5"
+                          step="0.1"
+                          value={customMaxScore}
+                          onChange={(e) => setCustomMaxScore(e.target.value)}
+                          className="bg-[#23232a] border-gray-600 text-white"
+                          placeholder="5.0"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Date Range */}
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Date Range</Label>
+                  <div className="flex gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="flex-1 bg-[#23232a] border-gray-600 text-white justify-start text-left font-normal"
+                        >
+                          {startDate ? format(startDate, "PPP") : "Start date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-[#1a1a1f] border-gray-700">
+                        <Calendar
+                          mode="single"
+                          selected={startDate}
+                          onSelect={setStartDate}
+                          initialFocus
+                          className="bg-[#1a1a1f]"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="flex-1 bg-[#23232a] border-gray-600 text-white justify-start text-left font-normal"
+                        >
+                          {endDate ? format(endDate, "PPP") : "End date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-[#1a1a1f] border-gray-700">
+                        <Calendar
+                          mode="single"
+                          selected={endDate}
+                          onSelect={setEndDate}
+                          initialFocus
+                          className="bg-[#1a1a1f]"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                {/* Persona Filter */}
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Persona (Optional)</Label>
+                  <Select value={selectedPersonaForExport} onValueChange={setSelectedPersonaForExport}>
+                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Personas</SelectItem>
+                      {personas.map((persona) => (
+                        <SelectItem key={persona.id} value={persona.id}>
+                          {persona.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Export Button and Status */}
+                <div className="flex items-center gap-4 pt-2">
+                  <Button
+                    onClick={handleExportTrainingData}
+                    disabled={isExporting}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    {isExporting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Training Data
+                      </>
+                    )}
+                  </Button>
+                  {exportSuccess && (
+                    <span className="text-green-400 text-sm">Export successful! File downloaded.</span>
+                  )}
+                  {exportError && (
+                    <span className="text-red-400 text-sm">{exportError}</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
@@ -1607,6 +2308,196 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Training Scenarios Tab */}
+        {activeTab === "training-scenarios" && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-3xl font-bold text-white mb-2">Manage Training Scenarios</h2>
+                <p className="text-gray-400">Create and manage training scenarios for users to practice with</p>
+              </div>
+              <Button 
+                onClick={() => {
+                  setEditingTrainingScenario(null)
+                  setIsTrainingScenarioFormOpen(true)
+                }} 
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <PlusCircle className="w-4 h-4 mr-2" /> Add Scenario
+              </Button>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Total Scenarios</p>
+                      <p className="text-2xl font-bold text-white">{trainingScenarios.length}</p>
+                    </div>
+                    <Target className="w-8 h-8 text-blue-400 opacity-50" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Active</p>
+                      <p className="text-2xl font-bold text-green-400">
+                        {trainingScenarios.filter(s => s.is_active).length}
+                      </p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-400 opacity-50" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm">Linked to Personas</p>
+                      <p className="text-2xl font-bold text-purple-400">
+                        {trainingScenarios.filter(s => s.persona_id).length}
+                      </p>
+                    </div>
+                    <Users className="w-8 h-8 text-purple-400 opacity-50" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Scenarios Table */}
+            {trainingScenarios.length === 0 ? (
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-12">
+                  <div className="text-center">
+                    <Target className="w-16 h-16 mx-auto text-gray-600 mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No training scenarios yet</h3>
+                    <p className="text-gray-400 mb-6">Get started by creating your first training scenario</p>
+                    <Button 
+                      onClick={() => {
+                        setEditingTrainingScenario(null)
+                        setIsTrainingScenarioFormOpen(true)
+                      }} 
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <PlusCircle className="w-4 h-4 mr-2" /> Create First Scenario
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-gray-700">
+                        <TableHead className="text-gray-400">Title</TableHead>
+                        <TableHead className="text-gray-400">Persona</TableHead>
+                        <TableHead className="text-gray-400">Type</TableHead>
+                        <TableHead className="text-gray-400">Difficulty</TableHead>
+                        <TableHead className="text-gray-400">Status</TableHead>
+                        <TableHead className="text-gray-400 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {trainingScenarios.map((scenario) => (
+                        <TableRow key={scenario.id} className="border-gray-700">
+                          <TableCell className="text-white font-medium">
+                            {scenario.title}
+                          </TableCell>
+                          <TableCell className="text-gray-300">
+                            {scenario.personas ? (
+                              <Badge variant="outline" className="border-purple-500 text-purple-400">
+                                {scenario.personas.title}
+                              </Badge>
+                            ) : (
+                              <span className="text-gray-500">None</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-gray-300">
+                            <Badge variant="outline" className="border-gray-500 text-gray-400">
+                              {scenario.scenario_type.replace("_", " ")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-gray-300">
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                scenario.difficulty_level <= 2 
+                                  ? "border-green-500 text-green-400"
+                                  : scenario.difficulty_level === 3
+                                  ? "border-yellow-500 text-yellow-400"
+                                  : "border-red-500 text-red-400"
+                              }
+                            >
+                              Level {scenario.difficulty_level}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-gray-300">
+                            <Badge 
+                              variant={scenario.is_active ? "default" : "secondary"} 
+                              className={scenario.is_active ? "bg-green-600 text-white" : "bg-gray-600 text-gray-300"}
+                            >
+                              {scenario.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleToggleTrainingScenarioStatus(scenario)}
+                                className={`hover:bg-opacity-20 ${
+                                  scenario.is_active 
+                                    ? 'hover:bg-yellow-500/20 text-yellow-400' 
+                                    : 'hover:bg-green-500/20 text-green-400'
+                                }`}
+                              >
+                                {scenario.is_active ? (
+                                  <>
+                                    <PowerOff className="h-4 w-4 mr-1" />
+                                    Deactivate
+                                  </>
+                                ) : (
+                                  <>
+                                    <Power className="h-4 w-4 mr-1" />
+                                    Activate
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEditTrainingScenario(scenario)}
+                                className="hover:bg-blue-500/20 text-blue-400"
+                              >
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="hover:bg-red-500/20 text-red-400"
+                                onClick={() => handleDeleteTrainingScenario(scenario.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
         {/* Persona Form Modal */}
         {isPersonaFormOpen && (
           <PersonaForm
@@ -1616,10 +2507,22 @@ export default function AdminPage() {
               setEditingPersona(null)
             }}
             onSubmit={handlePersonaSubmit}
-                         initialData={editingPersona || undefined}
+            initialData={editingPersona || undefined}
+          />
+        )}
+
+        {isTrainingScenarioFormOpen && (
+          <TrainingScenarioForm
+            isOpen={isTrainingScenarioFormOpen}
+            onClose={() => {
+              setIsTrainingScenarioFormOpen(false)
+              setEditingTrainingScenario(null)
+            }}
+            onSubmit={handleTrainingScenarioSubmit}
+            initialData={editingTrainingScenario || undefined}
           />
         )}
       </div>
     </div>
   )
-} 
+}

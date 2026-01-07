@@ -26,7 +26,14 @@ export async function POST(request: NextRequest) {
     if (scenarioId) {
       const { data: scenario, error } = await supabase
         .from("training_scenarios")
-        .select("*")
+        .select(`
+          *,
+          personas (
+            id,
+            title,
+            description
+          )
+        `)
         .eq("id", scenarioId)
         .eq("is_active", true)
         .single();
@@ -53,13 +60,26 @@ export async function POST(request: NextRequest) {
         initialMessage: initialMessage,
         systemPrompt: scenario.system_prompt,
         expectedBehaviors: scenario.expected_behaviors,
+        persona_id: scenario.persona_id,
+        persona: scenario.personas ? {
+          id: scenario.personas.id,
+          title: scenario.personas.title,
+          description: scenario.personas.description,
+        } : undefined,
       });
     }
 
     // Otherwise, fetch a random scenario matching criteria
     let query = supabase
       .from("training_scenarios")
-      .select("*")
+      .select(`
+        *,
+        personas (
+          id,
+          title,
+          description
+        )
+      `)
       .eq("is_active", true);
 
     if (scenarioType) {
@@ -95,6 +115,12 @@ export async function POST(request: NextRequest) {
       initialMessage: initialMessage,
       systemPrompt: randomScenario.system_prompt,
       expectedBehaviors: randomScenario.expected_behaviors,
+      persona_id: randomScenario.persona_id,
+      persona: randomScenario.personas ? {
+        id: randomScenario.personas.id,
+        title: randomScenario.personas.title,
+        description: randomScenario.personas.description,
+      } : undefined,
     });
   } catch (error) {
     console.error("Scenario generation error:", error);

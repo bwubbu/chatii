@@ -55,16 +55,30 @@ export default function ChatPage({ params }: { params: Promise<{ persona: string
     router.push(`/chat/${persona}/${conversation.id}`);
   };
 
+  if (!personaData) {
+    return (
+      <div className="flex h-screen bg-[#171717]">
+        <ConversationSidebar />
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+            <p className="mt-4 text-gray-400">Loading persona...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-[#171717]">
       <ConversationSidebar />
       <div className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold text-white">
-            {personaData?.title || "Loading..."}
+            {personaData.title}
           </h1>
           <p className="text-gray-400">
-            Start a new conversation to begin chatting with {personaData?.title || "this persona"}.
+            Start a new conversation to begin chatting with {personaData.title}.
           </p>
           <Button
             onClick={startNewConversation}

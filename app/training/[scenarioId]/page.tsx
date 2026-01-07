@@ -80,6 +80,11 @@ interface Scenario {
   initialMessage: string;
   systemPrompt: string;
   expectedBehaviors: string[];
+  persona?: {
+    id: string;
+    title: string;
+    description?: string;
+  };
 }
 
 export default function TrainingSessionPage({
@@ -165,6 +170,24 @@ export default function TrainingSessionPage({
 
       if (response.ok) {
         const data = await response.json();
+        
+        // If persona data is not included in the API response, fetch it separately
+        if (!data.persona && data.persona_id) {
+          const { data: personaData } = await supabase
+            .from("personas")
+            .select("id, title, description")
+            .eq("id", data.persona_id)
+            .single();
+          
+          if (personaData) {
+            data.persona = {
+              id: personaData.id,
+              title: personaData.title,
+              description: personaData.description,
+            };
+          }
+        }
+        
         setScenario(data);
 
         // Check if there's an existing session first
@@ -917,6 +940,13 @@ export default function TrainingSessionPage({
         {/* Header */}
         <div className="mb-6">
           <div>
+            {scenario.persona && (
+              <div className="mb-3">
+                <Badge className="bg-purple-500/20 text-purple-400 border border-purple-500/30 text-sm px-3 py-1">
+                  Training as: {scenario.persona.title}
+                </Badge>
+              </div>
+            )}
             <h1 className="text-3xl font-bold mb-2 text-white">{scenario.title}</h1>
             <p className="text-gray-400">{scenario.description}</p>
           </div>

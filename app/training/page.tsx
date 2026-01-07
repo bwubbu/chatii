@@ -38,6 +38,11 @@ interface TrainingScenario {
   initialMessage: string;
   systemPrompt: string;
   expectedBehaviors: string[];
+  persona?: {
+    id: string;
+    title: string;
+    description?: string;
+  };
 }
 
 interface TrainingSession {
@@ -91,10 +96,17 @@ export default function TrainingPage() {
       });
 
       if (response.ok) {
-        // Fetch all active scenarios from database
+        // Fetch all active scenarios from database with persona information
         const { data, error } = await supabase
           .from("training_scenarios")
-          .select("*")
+          .select(`
+            *,
+            personas (
+              id,
+              title,
+              description
+            )
+          `)
           .eq("is_active", true)
           .order("difficulty_level", { ascending: true });
 
@@ -109,6 +121,11 @@ export default function TrainingPage() {
               initialMessage: s.initial_message,
               systemPrompt: s.system_prompt,
               expectedBehaviors: s.expected_behaviors || [],
+              persona: s.personas ? {
+                id: s.personas.id,
+                title: s.personas.title,
+                description: s.personas.description,
+              } : undefined,
             }))
           );
         }
@@ -588,6 +605,13 @@ export default function TrainingPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col flex-grow">
+                  {scenario.persona && (
+                    <div className="mb-3">
+                      <Badge className="bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                        Practice as: {scenario.persona.title}
+                      </Badge>
+                    </div>
+                  )}
                   <div className="mb-4">
                     <Badge className={`${getTypeColor(scenario.scenarioType)} border-0`}>
                       {scenario.scenarioType.replace("_", " ")}

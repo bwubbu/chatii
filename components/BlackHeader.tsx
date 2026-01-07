@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Home, Users, Shield, Menu, X, Code2, Target, Globe, Languages, User, LogOut } from "lucide-react"
+import { Home, Users, Shield, Menu, X, Code2, Target, Globe, Languages, User, LogOut, Loader2 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useUser } from "@/components/UserContext"
 import { useLanguage } from "@/components/LanguageContext"
@@ -16,6 +16,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 const ADMIN_EMAIL = "kyrodahero123@gmail.com"
 
@@ -25,10 +31,22 @@ export default function BlackHeader() {
   const pathname = usePathname()
   const router = useRouter()
   const [navOpen, setNavOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
+    setIsLoggingOut(true)
+    try {
+      await supabase.auth.signOut()
+      // Small delay to ensure the logout completes
+      await new Promise(resolve => setTimeout(resolve, 500))
+      router.push("/")
+    } catch (error) {
+      console.error("Logout error:", error)
+      // Still redirect even if there's an error
+      router.push("/")
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   // Hide header on chat pages
@@ -244,6 +262,18 @@ export default function BlackHeader() {
           </div>
         )}
       </div>
+      {/* Logout Loading Dialog */}
+      <Dialog open={isLoggingOut} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-[#1a1a1f] border-gray-700 [&>button]:hidden">
+          <DialogTitle className="sr-only">Logging out</DialogTitle>
+          <div className="flex flex-col items-center justify-center py-6 px-4">
+            <Loader2 className="h-8 w-8 animate-spin text-green-400 mb-4" />
+            <DialogDescription className="text-center text-white text-lg font-medium">
+              Logging you out...
+            </DialogDescription>
+          </div>
+        </DialogContent>
+      </Dialog>
     </header>
   )
 } 

@@ -9,9 +9,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
-import { Mail, Lock } from "lucide-react"
+import { Mail, Lock, Loader2 } from "lucide-react"
 import { useTypingAnimation } from "@/hooks/use-typing-animation"
 import { supabase } from "@/supabaseClient"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -19,6 +25,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
     texts: ["Welcome back to RamahAI"],
@@ -49,27 +56,47 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) {
-      setError(error.message)
-    } else {
-      // Optionally redirect or refresh
-      window.location.href = "/";
+    setIsLoggingIn(true)
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      if (error) {
+        setError(error.message)
+        setIsLoggingIn(false)
+      } else {
+        // Small delay to show the loading popup
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Redirect to homepage
+        window.location.href = "/";
+      }
+    } catch (err) {
+      console.error("Login error:", err)
+      setIsLoggingIn(false)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleGoogleSignIn = async () => {
     setLoading(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google" })
-    if (error) {
-      setError(error.message)
+    setIsLoggingIn(true)
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ provider: "google" })
+      if (error) {
+        setError(error.message)
+        setIsLoggingIn(false)
+      }
+      // Note: OAuth will redirect to Google, so the popup will remain until redirect
+    } catch (err) {
+      console.error("Google sign-in error:", err)
+      setIsLoggingIn(false)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -221,6 +248,18 @@ export default function LoginPage() {
           </Card>
         </div>
       </div>
+      {/* Login Loading Dialog */}
+      <Dialog open={isLoggingIn} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-[#1a1a1f] border-gray-700 [&>button]:hidden">
+          <DialogTitle className="sr-only">Logging in</DialogTitle>
+          <div className="flex flex-col items-center justify-center py-6 px-4">
+            <Loader2 className="h-8 w-8 animate-spin text-green-400 mb-4" />
+            <DialogDescription className="text-center text-white text-lg font-medium">
+              Logging you in...
+            </DialogDescription>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
