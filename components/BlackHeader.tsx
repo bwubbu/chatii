@@ -36,14 +36,30 @@ export default function BlackHeader() {
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
-      await supabase.auth.signOut()
-      // Small delay to ensure the logout completes
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Use local scope to avoid server-side logout (prevents 403 errors)
+      // This clears the session locally without requiring server authentication
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      
+      if (error) {
+        console.warn("Signout warning (non-critical):", error)
+      }
+      
+      // Small delay to ensure UI updates
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Redirect to homepage
       router.push("/")
+      // Force a hard refresh to ensure all auth state is cleared
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 100)
     } catch (error) {
       console.error("Logout error:", error)
-      // Still redirect even if there's an error
+      // Even if there's an error, redirect to clear the session
       router.push("/")
+      setTimeout(() => {
+        window.location.href = "/"
+      }, 100)
     } finally {
       setIsLoggingOut(false)
     }
@@ -252,14 +268,15 @@ export default function BlackHeader() {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <div className="flex space-x-2">
-            <Button asChild variant="secondary" className="bg-white/90 text-gray-900 hover:bg-white">
-              <Link href="/login">Login</Link>
-            </Button>
-            <Button asChild className="bg-white text-gray-900 hover:bg-gray-100">
-              <Link href="/signup">Sign Up</Link>
-            </Button>
-          </div>
+          <Button 
+            asChild 
+            className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold px-6 py-2 shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 flex items-center gap-2"
+          >
+            <Link href="/login" className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              <span>Login</span>
+            </Link>
+          </Button>
         )}
       </div>
       {/* Logout Loading Dialog */}
