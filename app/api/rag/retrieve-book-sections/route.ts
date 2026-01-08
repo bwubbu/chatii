@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { generateEmbedding } from "@/lib/embedding-utils";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,40 +20,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate embedding for the query
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
-                   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    // Use direct function call instead of HTTP to avoid URL issues
+    let embedding: number[];
+    try {
+      const embeddingData = await generateEmbedding(query);
+      embedding = embeddingData.embedding;
+      
+      if (!embedding || !Array.isArray(embedding)) {
+        console.error("Invalid embedding format:", embeddingData);
+        return NextResponse.json(
+          { error: "Invalid embedding format", details: "Embedding is not an array" },
+          { status: 500 }
+        );
+      }
 
-    const embeddingResponse = await fetch(`${baseUrl}/api/embeddings/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: query }),
-    });
-
-    if (!embeddingResponse.ok) {
-      const error = await embeddingResponse.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: "Failed to generate query embedding", details: error },
-        { status: 500 }
-      );
-    }
-
-    const embeddingData = await embeddingResponse.json();
-    const embedding = embeddingData.embedding;
-
-    if (!embedding || !Array.isArray(embedding)) {
-      console.error("Invalid embedding format:", embeddingData);
-      return NextResponse.json(
-        { error: "Invalid embedding format", details: "Embedding is not an array" },
-        { status: 500 }
-      );
-    }
-
-    // Check embedding dimensions - database expects 1536 (OpenAI)
-    if (embedding.length !== 1536) {
+      // Check embedding dimensions - database expects 1536 (OpenAI)
+      if (embedding.length !== 1536) {
+        return NextResponse.json(
+          { 
+            error: "Invalid embedding dimensions",
+            details: `Got ${embedding.length} dimensions, but expected 1536 (OpenAI).`
+          },
+          { status: 500 }
+        );
+      }
+    } catch (embeddingError) {
+      console.error("Embedding generation error:", embeddingError);
       return NextResponse.json(
         { 
-          error: "Invalid embedding dimensions",
-          details: `Got ${embedding.length} dimensions, but expected 1536 (OpenAI).`
+          error: "Failed to generate query embedding", 
+          details: embeddingError instanceof Error ? embeddingError.message : "Unknown error"
         },
         { status: 500 }
       );
