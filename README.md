@@ -1,14 +1,14 @@
-# 🤖 Fairness Chatbot - AI Assistant with Ethical Training
+# 🤖 Fairness Chatbot - AI Assistant with RAG-Enhanced Responses
 
-A Next.js chatbot application featuring fairness-trained AI models with memory-efficient inference using Ollama. Built with React, TypeScript, FastAPI, and Supabase.
+A Next.js chatbot application featuring Vertex AI Llama models with RAG (Retrieval Augmented Generation) for culturally-aware, fair, and polite responses. Built with React, TypeScript, and Supabase.
 
 ![Chatbot Interface](public/placeholder.svg)
 
 ## ✨ Features
 
-- 🎯 **Fairness-trained AI models** - Promotes respectful and unbiased conversations
-- 💾 **Memory-efficient inference** - Uses quantized models to reduce RAM usage by 66%
-- 🚀 **Multiple AI backends** - Choose between Fairness Model (Ollama) and Gemini
+- 🎯 **RAG-Enhanced AI** - Uses Vertex AI Llama models with RAG for culturally-aware responses
+- 🧠 **Knowledge Retrieval** - Retrieves relevant guidelines, cultural context, and examples
+- 🚀 **Multiple AI backends** - Choose between Vertex AI Llama 3 and Gemini
 - 👥 **Persona-based conversations** - Different AI personalities for various use cases
 - 📊 **Analytics & feedback** - Collect user demographics and conversation feedback
 - 🎨 **Modern UI** - Beautiful, responsive design with dark theme
@@ -17,10 +17,11 @@ A Next.js chatbot application featuring fairness-trained AI models with memory-e
 
 ## 🛠️ Tech Stack
 
-- **Frontend:** Next.js 14, React, TypeScript, Tailwind CSS
-- **Backend:** FastAPI (Python), Ollama
-- **Database:** Supabase (PostgreSQL)
-- **AI Models:** Llama 3.1 8B (quantized), Google Gemini
+- **Frontend:** Next.js 15, React, TypeScript, Tailwind CSS
+- **Backend:** Next.js API Routes
+- **Database:** Supabase (PostgreSQL with pgvector)
+- **AI Models:** Vertex AI Llama 3 (managed), Google Gemini (fallback)
+- **RAG System:** Vector embeddings (OpenAI/Cohere) with semantic search
 - **Authentication:** Supabase Auth
 
 ## 📋 Prerequisites
@@ -28,9 +29,9 @@ A Next.js chatbot application featuring fairness-trained AI models with memory-e
 Before running this project, make sure you have:
 
 - **Node.js** (v18 or higher) - [Download here](https://nodejs.org/)
-- **Python** (v3.8 or higher) - [Download here](https://python.org/)
-- **Ollama** - [Download here](https://ollama.com/)
 - **Git** - [Download here](https://git-scm.com/)
+- **Google Cloud Project** with Vertex AI API enabled
+- **Supabase Account** for database and authentication
 
 ## 🚀 Quick Start
 
@@ -46,9 +47,8 @@ cd chatii
 ```bash
 # Install Node.js dependencies
 npm install
-
-# Install Python dependencies
-pip install -r requirements.txt
+# or
+pnpm install
 ```
 
 ### 3. Set Up Environment Variables
@@ -59,38 +59,55 @@ Create a `.env.local` file in the root directory:
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
-# Google Gemini API (optional)
+# Primary LLM Configuration (Optional)
+# Set to "gemini" (default) or "vertex-ai" to choose which model to use first
+# The other model will be used as fallback if the primary fails
+PRIMARY_LLM=gemini
+
+# Google Gemini API (Required if using Gemini)
 GEMINI_API_KEY=your_gemini_api_key
+
+# Google Cloud Vertex AI Configuration (Required if using Vertex AI)
+GOOGLE_CLOUD_PROJECT_ID=your_gcp_project_id
+GOOGLE_CLOUD_LOCATION=us-central1
+VERTEX_AI_MODEL=llama-3-8b-instruct
+GOOGLE_APPLICATION_CREDENTIALS_JSON={"type":"service_account",...}
+
+# OpenAI API (for embeddings)
+OPENAI_API_KEY=your_openai_api_key
+
+# Cohere API (optional, for embeddings alternative)
+COHERE_API_KEY=your_cohere_api_key
 ```
 
-### 4. Start the Application
+### 4. Set Up Google Cloud
 
-**Option A: Automatic Start (Windows)**
+**For Gemini (Primary - Recommended):**
+1. Get a **Gemini API key** from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Set `GEMINI_API_KEY` in your `.env.local` file
+
+**For Vertex AI (Optional Fallback):**
+1. **Enable Vertex AI API** in your GCP project
+2. **Create a service account** with Vertex AI User role
+3. **Download service account key** as JSON
+4. **Set `GOOGLE_APPLICATION_CREDENTIALS_JSON`** to the full JSON content (or use Application Default Credentials for local dev)
+5. **Accept Llama model license** in [Vertex AI Model Garden](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden)
+
+**Note:** You can configure which model to use as primary by setting `PRIMARY_LLM=gemini` (default) or `PRIMARY_LLM=vertex-ai` in your `.env.local` file. The other model will automatically be used as a fallback if the primary fails.
+
+### 5. Start the Application
+
 ```bash
-start_fairness_chatbot.bat
-```
-
-**Option B: Manual Start**
-
-Open 3 terminals and run:
-
-```bash
-# Terminal 1: Start Ollama server
-ollama serve
-
-# Terminal 2: Start FastAPI backend
-python ollama_chatbot_server.py --model llama3.1:8b-instruct-q4_0
-
-# Terminal 3: Start Next.js frontend
 npm run dev
+# or
+pnpm dev
 ```
 
-### 5. Access the Application
+### 6. Access the Application
 
 - **Frontend:** http://localhost:3000
-- **API Documentation:** http://localhost:8000/docs
-- **Health Check:** http://localhost:8000/health
 
 ## 🎮 How to Use
 
@@ -99,8 +116,9 @@ npm run dev
 1. **Sign up/Login** at http://localhost:3000
 2. **Choose a persona** from the available options
 3. **Select AI model:**
-   - **Fairness Model** - Memory-efficient, ethics-focused
-   - **Gemini** - Google's powerful language model
+   - The system uses either **Gemini** or **Vertex AI Llama 3** as primary (configurable via `PRIMARY_LLM` env variable)
+   - The other model is automatically used as fallback if the primary fails
+   - Default: Gemini (simpler setup)
 4. **Start chatting!**
 
 ### Available Personas
@@ -112,68 +130,93 @@ npm run dev
 - **Sales Assistant** - Product recommendation specialist
 - And more...
 
+### Primary LLM Configuration
+
+You can choose which model to use as primary by setting the `PRIMARY_LLM` environment variable:
+
+```env
+# Use Gemini as primary (default - simpler setup)
+PRIMARY_LLM=gemini
+
+# Or use Vertex AI as primary (better for production)
+PRIMARY_LLM=vertex-ai
+```
+
+The other model will automatically be used as a fallback if the primary fails.
+
 ### Model Comparison
 
-| Feature | Fairness Model (Ollama) | Gemini |
-|---------|------------------------|---------|
-| **Memory Usage** | ~4.7GB | API-based |
-| **Response Time** | Fast (local) | Moderate (API) |
-| **Specialization** | Fairness & Ethics | General Purpose |
-| **Cost** | Free | API costs |
-| **Privacy** | Local inference | Cloud-based |
+| Feature | Gemini | Vertex AI Llama 3 |
+|---------|--------|-------------------|
+| **Infrastructure** | API-based | Fully managed |
+| **Response Time** | Fast | Fast (managed) |
+| **Setup Complexity** | Simple (API key only) | Complex (requires license acceptance) |
+| **Specialization** | General Purpose | General purpose with RAG |
+| **Cost** | API costs | Pay-per-use |
+| **RAG Support** | Yes (via system prompt) | Yes (via system prompt) |
+| **Best For** | Development, quick setup | Production, enterprise use |
 
 ## 🔧 Configuration
 
-### Ollama Model Configuration
+### Vertex AI Model Configuration
 
-The default model is `llama3.1:8b-instruct-q4_0`. To use a different model:
+The default model is `llama-3-8b-instruct`. To use a different model, set the `VERTEX_AI_MODEL` environment variable:
 
-```bash
-# Pull a different model
-ollama pull mistral:7b-instruct-q4_0
-
-# Start server with different model
-python ollama_chatbot_server.py --model mistral:7b-instruct-q4_0
+```env
+VERTEX_AI_MODEL=llama-3-70b-instruct  # For larger model
+# or
+VERTEX_AI_MODEL=llama-3.3-70b-instruct  # For Llama 3.3
 ```
+
+Available models in Vertex AI Model Garden:
+- `llama-3-8b-instruct` (default)
+- `llama-3-70b-instruct`
+- `llama-3.3-70b-instruct`
+- `llama-4-maverick` (when available)
 
 ### System Requirements
 
-- **RAM:** 8GB minimum, 16GB recommended
-- **Storage:** 10GB for models and dependencies
-- **CPU:** Modern multi-core processor recommended
+- **Node.js:** v18 or higher
+- **Google Cloud Project** with Vertex AI API enabled
+- **Supabase Account** for database
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-**1. "Ollama not found" error**
+**1. "Vertex AI authentication failed" error**
+- Ensure `GOOGLE_APPLICATION_CREDENTIALS_JSON` is set with valid service account JSON
+- Or configure Application Default Credentials for local development
+- Verify the service account has Vertex AI User role
+
+**2. "GOOGLE_CLOUD_PROJECT_ID not set" error**
+- Set `GOOGLE_CLOUD_PROJECT_ID` environment variable
+- Ensure Vertex AI API is enabled in your GCP project
+
+**3. "Model not found" error (Vertex AI)**
+- **Most common cause:** License not accepted in Vertex AI Model Garden
+  - Go to: https://console.cloud.google.com/vertex-ai/model-garden
+  - Search for "llama" → Click "Llama 3 8B Instruct" → Click "Accept"
+  - Wait 2-5 minutes for access to be granted
+- Verify the model name in `VERTEX_AI_MODEL` matches available models
+  - ✅ Correct: `llama-3-8b-instruct` (dash, not dot)
+  - ❌ Wrong: `llama-3.1-8b-instruct`
+- Ensure the model is available in your selected region (`GOOGLE_CLOUD_LOCATION`)
+- **Run verification script:** `node scripts/verify-vertex-ai-setup.js`
+- **Quick fix:** Switch to Gemini as primary: `PRIMARY_LLM=gemini` in `.env.local`
+
+**4. Switching between models for troubleshooting**
+- To use Gemini as primary: `PRIMARY_LLM=gemini` (default)
+- To use Vertex AI as primary: `PRIMARY_LLM=vertex-ai`
+- The system will automatically fallback to the other model if the primary fails
+- Check logs to see which model was used: `server_type` in the response indicates `gemini`, `vertex-ai`, `gemini-fallback`, or `vertex-ai-fallback`
+
+**4. "google-auth-library not found" error**
 ```bash
-# Check if Ollama is installed
-ollama --version
-
-# If not installed, download from https://ollama.com/
-```
-
-**2. "Model not found" error**
-```bash
-# Pull the required model
-ollama pull llama3.1:8b-instruct-q4_0
-```
-
-**3. High memory usage**
-```bash
-# Use a smaller quantized model
-ollama pull llama3.1:8b-instruct-q2_K
-python ollama_chatbot_server.py --model llama3.1:8b-instruct-q2_K
-```
-
-**4. FastAPI server not starting**
-```bash
-# Check if port 8000 is available
-netstat -an | findstr :8000
-
-# Use a different port
-python ollama_chatbot_server.py --port 8001
+# Install the required package
+npm install google-auth-library
+# or
+pnpm add google-auth-library
 ```
 
 **5. Next.js build errors**
@@ -185,11 +228,10 @@ npm install
 
 ### Testing the Integration
 
-Run the test script to verify everything is working:
-
-```bash
-python test_integration.py
-```
+The application uses Vertex AI for LLM inference. Verify the connection by:
+1. Testing the chat interface
+2. Checking browser console for Vertex AI API calls
+3. Verifying environment variables are set correctly
 
 ## 📁 Project Structure
 
@@ -213,9 +255,14 @@ chatii/
 │   └── notebooks/                # Jupyter notebooks
 ├── Lora Model/                   # Trained model adapters
 ├── supabase/                     # Database migrations
-├── ollama_chatbot_server.py      # FastAPI backend server
-├── start_fairness_chatbot.bat    # Windows startup script
-└── test_integration.py           # Integration tests
+├── ollama_chatbot_server.py      # FastAPI backend server (for local dev)
+├── legacy/                       # Legacy/unused files
+│   ├── fairness_model_server_fastapi.py
+│   ├── persona_export_api.py
+│   ├── convert_lora_to_ollama.py
+│   ├── test_integration.py
+│   ├── test_persona_behavior.py
+│   └── start_fairness_chatbot.bat
 ```
 
 ## 🎯 Development
@@ -238,10 +285,10 @@ See `fine_tuning/README.md` for detailed instructions on:
 
 | Endpoint | Method | Description |
 |----------|---------|-------------|
-| `/api/trained-model` | POST | Chat with fairness model |
-| `/api/gemini-chat` | POST | Chat with Gemini |
-| `/health` | GET | Health check |
-| `/docs` | GET | API documentation |
+| `/api/trained-model` | POST | Chat with Vertex AI Llama 3 |
+| `/api/gemini-chat` | POST | Chat with Gemini (fallback) |
+| `/api/rag/retrieve` | POST | Retrieve RAG guidelines |
+| `/api/rag/retrieve-combined` | POST | Retrieve guidelines, book sections, and negative examples |
 
 ## 🤝 Contributing
 
@@ -257,20 +304,21 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- **Ollama** - For making local LLM inference accessible
-- **Unsloth** - For efficient model fine-tuning
-- **Supabase** - For the amazing backend-as-a-service
+- **Vertex AI** - For managed Llama models and infrastructure
+- **Supabase** - For the amazing backend-as-a-service with pgvector
 - **Next.js** - For the powerful React framework
-- **FastAPI** - For the high-performance API framework
+- **OpenAI/Cohere** - For embedding generation
+- **Google Gemini** - For fallback LLM support
 
 ## 📞 Support
 
 If you encounter any issues or have questions:
 
 1. Check the [Troubleshooting](#-troubleshooting) section
-2. Run `python test_integration.py` to verify setup
-3. Open an issue on GitHub
-4. Check the API documentation at http://localhost:8000/docs
+2. Verify your Vertex AI environment variables are set correctly
+3. Ensure Vertex AI API is enabled in your GCP project
+4. Check that you've accepted the Llama model license in Vertex AI Model Garden
+5. Open an issue on GitHub
 
 ---
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { queryFeedbackConversationsWithClient, convertToJSONL } from "@/lib/feedback-export";
+import { queryFeedbackConversationsWithClient, convertToJSONL, convertToEmbeddingJSONL } from "@/lib/feedback-export";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
     const personaId = searchParams.get("personaId") || undefined;
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
+    const format = searchParams.get("format") || "embedding"; // "embedding" or "finetuning"
 
     // Validate parameters
     if (minScore !== undefined && (isNaN(minScore) || minScore < 0 || minScore > 5)) {
@@ -95,15 +96,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Convert to JSONL format
-    const jsonlContent = convertToJSONL(conversations);
+    // Convert to JSONL format based on selected format
+    const jsonlContent = format === "finetuning" 
+      ? convertToJSONL(conversations)
+      : convertToEmbeddingJSONL(conversations);
 
-    // Generate filename with timestamp
+    // Generate filename with timestamp and format
     const timestamp = new Date().toISOString().split("T")[0];
     const scoreRange = minScore !== undefined || maxScore !== undefined
       ? `_${minScore ?? 0}-${maxScore ?? 5}`
       : "";
-    const filename = `feedback_training_data${scoreRange}_${timestamp}.jsonl`;
+    const formatSuffix = format === "embedding" ? "_embedding" : "_finetuning";
+    const filename = `feedback_training_data${formatSuffix}${scoreRange}_${timestamp}.jsonl`;
 
     // Return as downloadable file
     return new NextResponse(jsonlContent, {

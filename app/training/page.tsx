@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,11 +23,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 interface TrainingScenario {
   id: string;
@@ -209,17 +204,52 @@ export default function TrainingPage() {
     }
   };
 
-  const handleDeleteClick = (e: React.MouseEvent, sessionId: string) => {
+  const handleDeleteClick = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation(); // Prevent navigation when clicking delete
-    setSessionToDelete(sessionId);
-    setDeleteDialogOpen(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+      setSessionToDelete(sessionId);
+      setDeleteDialogOpen(true);
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      router.push("/login");
+    }
   };
 
   const handleDeleteConfirm = async () => {
     if (!sessionToDelete) return;
 
     try {
+      // Get current user to verify ownership
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("You must be logged in to delete sessions.");
+        return;
+      }
+
+      // First verify the session belongs to the user (extra safety check)
+      const { data: sessionData, error: fetchError } = await supabase
+        .from("training_sessions")
+        .select("user_id")
+        .eq("id", sessionToDelete)
+        .single();
+
+      if (fetchError || !sessionData) {
+        alert("Session not found.");
+        return;
+      }
+
+      if (sessionData.user_id !== user.id) {
+        alert("You don't have permission to delete this session.");
+        return;
+      }
+
       // Delete the session (CASCADE will automatically delete related training_responses)
+      // RLS will also enforce ownership
       const { error, data } = await supabase
         .from("training_sessions")
         .delete()
@@ -250,8 +280,18 @@ export default function TrainingPage() {
     }
   };
 
-  const startTraining = (scenarioId: string) => {
-    router.push(`/training/${scenarioId}`);
+  const startTraining = async (scenarioId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+      router.push(`/training/${scenarioId}`);
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      router.push("/login");
+    }
   };
 
   const getDifficultyColor = (difficulty: number) => {
@@ -645,9 +685,19 @@ export default function TrainingPage() {
                 <Card 
                   key={session.id} 
                   className="bg-[#1a1a1f]/80 border-gray-700 backdrop-blur-sm hover:border-purple-500/50 transition-all cursor-pointer relative group"
-                  onClick={() => {
-                    // Navigate to the scenario page to resume
-                    router.push(`/training/${session.scenario_id}`);
+                  onClick={async () => {
+                    try {
+                      const { data: { user } } = await supabase.auth.getUser();
+                      if (!user) {
+                        router.push("/login");
+                        return;
+                      }
+                      // Navigate to the scenario page to resume
+                      router.push(`/training/${session.scenario_id}`);
+                    } catch (error) {
+                      console.error('Error checking authentication:', error);
+                      router.push("/login");
+                    }
                   }}
                 >
                   <CardContent className="pt-6">

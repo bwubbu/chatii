@@ -12,6 +12,34 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
  */
 export async function GET(request: NextRequest) {
   try {
+    // Verify admin access
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Unauthorized - Missing or invalid authorization header" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    // Check if user is admin
+    const adminEmail = process.env.ADMIN_EMAIL || "kyrodahero123@gmail.com";
+    if (user.email !== adminEmail && user.email !== "admin@fairnessai.com") {
+      return NextResponse.json(
+        { error: "Forbidden - Admin access required" },
+        { status: 403 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const userId = searchParams.get("userId");
 
@@ -23,9 +51,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user email using admin client
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const { data: userData, error: userError2 } = await supabaseAdmin.auth.admin.getUserById(userId);
 
-    if (userError || !userData?.user) {
+    if (userError2 || !userData?.user) {
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }

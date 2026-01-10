@@ -121,19 +121,16 @@ export default function PersonasPage() {
   };
 
   const createNewConversation = async (personaId: string) => {
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      window.location.href = '/login';
+      return null;
+    }
+
     setCreatingConversation(personaId);
     try {
-      // Get the current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        console.error("User not authenticated:", userError);
-        // Provide user-friendly message and redirect to login
-        if (confirm("You need to be logged in to start a conversation. Would you like to go to the login page?")) {
-          window.location.href = '/login';
-        }
-        return null;
-      }
 
       const { data, error } = await supabase
         .from("conversations")
@@ -287,7 +284,19 @@ export default function PersonasPage() {
                       <Button
                         variant="outline"
                         className="w-full justify-between bg-[#2a2a2f] border-gray-600 text-gray-300 hover:bg-[#333338] hover:text-white"
-                        onClick={() => togglePersonaExpanded(persona.id)}
+                        onClick={async () => {
+                          try {
+                            const { data: { user } } = await supabase.auth.getUser();
+                            if (!user) {
+                              window.location.href = '/login';
+                              return;
+                            }
+                            togglePersonaExpanded(persona.id);
+                          } catch (error) {
+                            console.error('Error checking authentication:', error);
+                            window.location.href = '/login';
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4" />
@@ -302,13 +311,39 @@ export default function PersonasPage() {
                       
                       {expandedPersonas.has(persona.id) && (
                         <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                          {pastConversations[persona.id].map((conv) => (
-                            <Link
-                              key={conv.id}
-                              href={`/chat/${persona.id}/${conv.id}`}
-                              className="block"
-                            >
-                              <div className="p-2 rounded-md bg-[#2a2a2f] hover:bg-[#333338] border border-gray-700 hover:border-gray-600 transition-colors cursor-pointer">
+                          {pastConversations[persona.id].map((conv) => {
+                            const handleConversationClick = async () => {
+                              try {
+                                const { data: { user } } = await supabase.auth.getUser();
+                                if (!user) {
+                                  window.location.href = '/login';
+                                  return;
+                                }
+                                window.location.href = `/chat/${persona.id}/${conv.id}`;
+                              } catch (error) {
+                                console.error('Error checking authentication:', error);
+                                window.location.href = '/login';
+                              }
+                            };
+
+                            const handleKeyDown = (e: React.KeyboardEvent) => {
+                              // Allow activation with Enter or Space key
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleConversationClick();
+                              }
+                            };
+
+                            return (
+                              <div
+                                key={conv.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={handleConversationClick}
+                                onKeyDown={handleKeyDown}
+                                aria-label={`Open conversation: ${conv.title}`}
+                                className="p-2 rounded-md bg-[#2a2a2f] hover:bg-[#333338] focus:bg-[#333338] focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 hover:border-gray-600 focus:border-purple-500 transition-colors cursor-pointer"
+                              >
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium text-white truncate">
@@ -321,8 +356,8 @@ export default function PersonasPage() {
                                   <MessageCircle className="w-4 h-4 text-gray-500 ml-2 flex-shrink-0" />
                                 </div>
                               </div>
-                            </Link>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -357,7 +392,19 @@ export default function PersonasPage() {
                 Have an idea for a new AI persona? Let us know what you'd like to see and we'll consider adding it to our collection.
               </p>
               <Button 
-                onClick={() => setRequestDialogOpen(true)}
+                onClick={async () => {
+                  try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) {
+                      window.location.href = '/login';
+                      return;
+                    }
+                    setRequestDialogOpen(true);
+                  } catch (error) {
+                    console.error('Error checking authentication:', error);
+                    window.location.href = '/login';
+                  }
+                }}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <Mail className="w-4 h-4 mr-2" />

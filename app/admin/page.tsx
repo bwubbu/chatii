@@ -126,11 +126,13 @@ export default function AdminPage() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportSuccess, setExportSuccess] = useState(false)
+  const [exportFormat, setExportFormat] = useState<'embedding' | 'finetuning'>('embedding')
   
   // Export flagged messages state
   const [isExportingFlagged, setIsExportingFlagged] = useState(false)
   const [exportFlaggedError, setExportFlaggedError] = useState<string | null>(null)
   const [exportFlaggedSuccess, setExportFlaggedSuccess] = useState(false)
+  const [exportFlaggedFormat, setExportFlaggedFormat] = useState<'embedding' | 'finetuning'>('embedding')
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all')
   const [scoreFilter, setScoreFilter] = useState<'high' | 'low' | 'custom'>('high')
   const [customMinScore, setCustomMinScore] = useState<string>('')
@@ -506,6 +508,9 @@ export default function AdminPage() {
         params.append('personaId', selectedPersonaForExport)
       }
 
+      // Add format parameter
+      params.append('format', exportFormat)
+
       // Get session token for authentication
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
@@ -577,6 +582,9 @@ export default function AdminPage() {
 
       // Only export resolved/approved flags
       params.append('status', 'resolved')
+
+      // Add format parameter
+      params.append('format', exportFlaggedFormat)
 
       // Get session token for authentication
       const { data: { session } } = await supabase.auth.getSession()
@@ -916,7 +924,7 @@ export default function AdminPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch("/api/api-keys", {
+      const response = await fetch("/api/api-keys?admin=true", {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${session.access_token}`,
@@ -1920,7 +1928,7 @@ export default function AdminPage() {
                   Export Flagged Messages (Negative Examples)
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Export resolved flagged messages as negative training examples. These show what the chatbot should NOT do.
+                  Export resolved flagged messages as negative training examples for RAG/embeddings or fine-tuning. These show what the chatbot should NOT do.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1939,6 +1947,25 @@ export default function AdminPage() {
                       <SelectItem value="low">Low</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Export Format */}
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Export Format</Label>
+                  <Select value={exportFlaggedFormat} onValueChange={(value: 'embedding' | 'finetuning') => setExportFlaggedFormat(value)}>
+                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="embedding">Embedding Format (RAG)</SelectItem>
+                      <SelectItem value="finetuning">Fine-tuning Format (Legacy)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    {exportFlaggedFormat === 'embedding' 
+                      ? 'Plain text format suitable for embedding generation and vector database storage.'
+                      : 'Mistral format with special tokens for model fine-tuning (legacy).'}
+                  </p>
                 </div>
 
                 {/* Note about date range and persona */}
@@ -1986,7 +2013,7 @@ export default function AdminPage() {
                   Export Positive Training Data
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Export feedback data with conversations for fine-tuning. Filter by quality scores, date range, and persona.
+                  Export feedback data with conversations for RAG/embeddings or fine-tuning. Filter by quality scores, date range, and persona.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -2096,6 +2123,25 @@ export default function AdminPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Export Format */}
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Export Format</Label>
+                  <Select value={exportFormat} onValueChange={(value: 'embedding' | 'finetuning') => setExportFormat(value)}>
+                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="embedding">Embedding Format (RAG)</SelectItem>
+                      <SelectItem value="finetuning">Fine-tuning Format (Legacy)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    {exportFormat === 'embedding' 
+                      ? 'Plain text format suitable for embedding generation and vector database storage.'
+                      : 'Mistral format with special tokens for model fine-tuning (legacy).'}
+                  </p>
                 </div>
 
                 {/* Export Button and Status */}

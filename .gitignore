@@ -98,3 +98,7 @@ Thumbs.db
 # Documentation files (keep local only)
 *.md
 !README.md
+
+# Google Cloud service account key file (should never be committed)
+# Use GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable instead
+ramahai-service-account-key.json

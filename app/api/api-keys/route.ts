@@ -5,12 +5,20 @@ import { cookies } from "next/headers";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+// Regular client for user operations (uses anon key, respects RLS)
+// This client is used for:
+// - Token verification (getUser works with anon key when token is provided)
+// - User-scoped queries that should respect RLS policies
+// DO NOT use this client for admin operations - use supabaseAdmin instead
 const supabase = createClient(
   supabaseUrl,
-  supabaseServiceKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Admin client for admin operations
+// Admin client for admin operations (uses service role key, bypasses RLS)
+// This client is used for:
+// - Admin queries that need to see all data
+// - Operations that require elevated permissions
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 /**
@@ -41,19 +49,61 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user is admin
-    const isAdmin = user.email === process.env.ADMIN_EMAIL || user.email === "admin@fairnessai.com";
+    // Match the admin email from admin page: "kyrodahero123@gmail.com"
+    const adminEmail = process.env.ADMIN_EMAIL || "kyrodahero123@gmail.com";
+    const isAdmin = user.email === adminEmail || user.email === "admin@fairnessai.com";
     
-    // Build query - admins see all keys, users see only their own
-    let query = supabase
-      .from("api_keys")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (!isAdmin) {
-      query = query.eq("user_id", user.id);
+    // Check if this is an admin request to see all keys (only from admin page)
+    const { searchParams } = new URL(request.url);
+    const adminView = searchParams.get("admin") === "true" || searchParams.get("all") === "true";
+    
+    console.log(`[API Keys] User: ${user.email}, Admin Email Check: ${adminEmail}, Is Admin: ${isAdmin}, Admin View: ${adminView}`);
+    console.log(`[API Keys] Service Role Key exists: ${!!supabaseServiceKey}`);
+    
+    // Build query - only show all keys if user is admin AND explicitly requesting admin view
+    // Otherwise, always filter by user_id (even for admins on dev/profile pages)
+    let clientToUse;
+    let query;
+    
+    if (isAdmin && adminView) {
+      // Admin on admin page: use service role client to see ALL keys
+      clientToUse = supabaseAdmin;
+      console.log(`[API Keys] Using admin client (service role - sees all keys for admin page)`);
+      query = clientToUse
+        .from("api_keys")
+        .select("*")
+        .order("created_at", { ascending: false });
+      console.log(`[API Keys] Admin query - no user_id filter (should see all keys)`);
+    } else {
+      // Regular user OR admin on dev/profile pages: use authenticated client to see only their own keys
+      const userSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      });
+      clientToUse = userSupabase;
+      console.log(`[API Keys] Using authenticated user client (RLS will filter to user's own keys)`);
+      query = clientToUse
+        .from("api_keys")
+        .select("*")
+        .eq("user_id", user.id)  // Explicitly filter by user_id for extra safety
+        .order("created_at", { ascending: false });
+      console.log(`[API Keys] Filtering by user_id: ${user.id}${isAdmin ? ' (admin on dev/profile page)' : ''}`);
     }
 
     const { data: apiKeys, error } = await query;
+    
+    if (error) {
+      console.error(`[API Keys] Query error (isAdmin: ${isAdmin}):`, error);
+      console.error(`[API Keys] Error details:`, JSON.stringify(error, null, 2));
+    } else {
+      console.log(`[API Keys] Successfully fetched ${apiKeys?.length || 0} keys`);
+      if (apiKeys && apiKeys.length > 0) {
+        console.log(`[API Keys] User IDs in results:`, apiKeys.map((k: any) => k.user_id));
+      }
+    }
 
     if (error) {
       console.error("Error fetching API keys:", error);
@@ -63,45 +113,47 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // For admins, fetch user emails and don't return key snippets
-    // For regular users, return masked key version
-    if (isAdmin) {
+    // For admins viewing all keys (admin page), fetch user emails and don't return key snippets
+    // For regular users or admins on dev/profile pages, return masked key version
+    if (isAdmin && adminView) {
       // Fetch user emails for each API key
       const keysWithEmails = await Promise.all(
         (apiKeys || []).map(async (key: any) => {
-          try {
-            const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(key.user_id);
-            return {
-              id: key.id,
-              name: key.name,
-              created_at: key.created_at,
-              last_used: key.last_used,
-              usage_count: key.usage_count,
-              rate_limit: key.rate_limit,
-              permissions: key.permissions,
-              is_active: key.is_active,
-              user_id: key.user_id,
-              persona_id: key.persona_id,
-              created_by: key.created_by,
-              user_email: userData?.user?.email || 'Unknown'
-            };
-          } catch (err) {
-            console.error(`Error fetching email for user ${key.user_id}:`, err);
-            return {
-              id: key.id,
-              name: key.name,
-              created_at: key.created_at,
-              last_used: key.last_used,
-              usage_count: key.usage_count,
-              rate_limit: key.rate_limit,
-              permissions: key.permissions,
-              is_active: key.is_active,
-              user_id: key.user_id,
-              persona_id: key.persona_id,
-              created_by: key.created_by,
-              user_email: 'Unknown'
-            };
+          let userEmail = 'Unknown';
+          
+          // Only try to fetch email if user_id exists
+          if (key.user_id) {
+            try {
+              const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(key.user_id);
+              
+              if (userError) {
+                console.error(`Error fetching email for user ${key.user_id}:`, userError);
+              } else if (userData?.user?.email) {
+                userEmail = userData.user.email;
+              } else {
+                console.warn(`No email found for user ${key.user_id}`);
+              }
+            } catch (err) {
+              console.error(`Exception fetching email for user ${key.user_id}:`, err);
+            }
+          } else {
+            console.warn(`API key ${key.id} has no user_id`);
           }
+          
+          return {
+            id: key.id,
+            name: key.name,
+            created_at: key.created_at,
+            last_used: key.last_used,
+            usage_count: key.usage_count,
+            rate_limit: key.rate_limit,
+            permissions: key.permissions,
+            is_active: key.is_active,
+            user_id: key.user_id,
+            persona_id: key.persona_id,
+            created_by: key.created_by,
+            user_email: userEmail
+          };
         })
       );
 
@@ -203,8 +255,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert the API key
-    const { data: newKey, error: insertError } = await supabase
+    // Create an authenticated Supabase client for this user
+    // This ensures auth.uid() is set correctly in RLS policies
+    const userSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+
+    // Insert the API key using the authenticated client
+    const { data: newKey, error: insertError } = await userSupabase
       .from("api_keys")
       .insert({
         key: apiKey,
@@ -247,10 +309,13 @@ export async function POST(request: NextRequest) {
  * Delete an API key (soft delete by setting is_active to false, or hard delete)
  */
 export async function DELETE(request: NextRequest) {
+  console.log("[DELETE /api/api-keys] Request received");
+  
   try {
     // Get auth token from Authorization header
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.log("[DELETE /api/api-keys] Missing authorization header");
       return NextResponse.json(
         { error: "Unauthorized - Missing or invalid authorization header" },
         { status: 401 }
@@ -263,27 +328,73 @@ export async function DELETE(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
+      console.log("[DELETE /api/api-keys] Invalid token");
       return NextResponse.json(
         { error: "Unauthorized - Invalid token" },
         { status: 401 }
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const keyId = searchParams.get("id");
+    console.log("[DELETE /api/api-keys] User authenticated:", user.email);
+
+    // Get keyId from request body or query params
+    let keyId: string | null = null;
+    
+    // Check content-type to determine if body should be parsed
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      try {
+        const body = await request.json();
+        console.log("[DELETE /api/api-keys] Request body:", body);
+        keyId = body.keyId || body.id || null;
+      } catch (e) {
+        console.warn("[DELETE /api/api-keys] Failed to parse body:", e);
+      }
+    }
+    
+    // If not found in body, try query params
+    if (!keyId) {
+      const { searchParams } = new URL(request.url);
+      keyId = searchParams.get("id");
+      console.log("[DELETE /api/api-keys] KeyId from query params:", keyId);
+    }
 
     if (!keyId) {
+      console.log("[DELETE /api/api-keys] Missing keyId");
       return NextResponse.json(
         { error: "API key ID is required" },
         { status: 400 }
       );
     }
 
-    // Check if user is admin or owns the key
-    const isAdmin = user.email === process.env.ADMIN_EMAIL || user.email === "admin@fairnessai.com";
+    console.log("[DELETE /api/api-keys] Deleting key:", keyId);
+
+    // Check if user is admin
+    const adminEmail = process.env.ADMIN_EMAIL || "kyrodahero123@gmail.com";
+    const isAdmin = user.email === adminEmail || user.email === "admin@fairnessai.com";
     
-    // First, check if the key exists and user has permission
-    const { data: existingKey, error: fetchError } = await supabase
+    // For admins, use service role client to delete any key
+    // For regular users, use authenticated client to delete only their own keys
+    let clientToUse;
+    
+    if (isAdmin) {
+      // Admin: use service role client to delete any key
+      clientToUse = supabaseAdmin;
+      console.log("[DELETE /api/api-keys] Admin deleting - using service role client");
+    } else {
+      // Regular user: use authenticated client (RLS will enforce ownership)
+      clientToUse = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      });
+      console.log("[DELETE /api/api-keys] User deleting - using authenticated client");
+    }
+    
+    // First, check if the key exists
+    const { data: existingKey, error: fetchError } = await clientToUse
       .from("api_keys")
       .select("user_id")
       .eq("id", keyId)
@@ -296,6 +407,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // For regular users, double-check ownership (RLS should handle this, but extra safety)
     if (!isAdmin && existingKey.user_id !== user.id) {
       return NextResponse.json(
         { error: "Unauthorized - You can only delete your own API keys" },
@@ -303,8 +415,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete the key
-    const { error: deleteError } = await supabase
+    // Delete the key using the appropriate client
+    // Admin client can delete any key, user client can only delete their own (enforced by RLS)
+    const { error: deleteError } = await clientToUse
       .from("api_keys")
       .delete()
       .eq("id", keyId);

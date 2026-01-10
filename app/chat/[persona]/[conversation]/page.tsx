@@ -44,10 +44,14 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [flagReason, setFlagReason] = useState("");
   const [flagLoading, setFlagLoading] = useState(false);
   const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
+  const [hasSubmittedFeedback, setHasSubmittedFeedback] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [isNavigatingAway, setIsNavigatingAway] = useState(false);
   const { language } = useLanguage();
   
   // Add ref for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pendingNavigationRef = useRef<string | null>(null);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -55,10 +59,110 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   }, [messages, isLoading]);
 
   useEffect(() => {
+    // Reset navigation state when conversation changes
+    setIsNavigatingAway(false);
+    setQuestionnaireOpen(false);
+    setIsSubmittingFeedback(false);
+    pendingNavigationRef.current = null;
+    
     fetchPersona();
     fetchMessages();
     fetchDemographics();
+    checkExistingFeedback();
   }, [persona, conversation]);
+
+  const checkExistingFeedback = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("feedback_questionnaire")
+        .select("id")
+        .eq("conversation_id", conversation)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" which is fine
+        console.error("Error checking existing feedback:", error);
+        return;
+      }
+
+      // If feedback exists, mark as submitted
+      if (data) {
+        setHasSubmittedFeedback(true);
+      }
+    } catch (error) {
+      console.error("Error checking existing feedback:", error);
+    }
+  };
+
+  // Handle page unload (browser close, tab close, refresh)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only show browser warning if there are messages and feedback hasn't been submitted
+      if (messages.length > 0 && !hasSubmittedFeedback && !questionnaireOpen) {
+        e.preventDefault();
+        e.returnValue = ''; // Required for Chrome
+        return ''; // Required for some browsers
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [messages, hasSubmittedFeedback, questionnaireOpen]);
+
+  // Intercept link clicks and navigation attempts
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a');
+      
+      if (link && link.href) {
+        // Check if it's an internal navigation (not external link)
+        const url = new URL(link.href, window.location.origin);
+        if (url.origin === window.location.origin) {
+          // Don't intercept if navigating to another conversation (still on chat page)
+          const isChatNavigation = url.pathname.startsWith('/chat/');
+          
+          // Only intercept if leaving the chat page, there are messages, and feedback hasn't been submitted
+          if (!isChatNavigation && messages.length > 0 && !hasSubmittedFeedback && !questionnaireOpen && !isNavigatingAway) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Store the intended destination
+            pendingNavigationRef.current = url.pathname + url.search + url.hash;
+            // Show survey instead of navigating
+            setQuestionnaireOpen(true);
+            return false;
+          }
+        }
+      }
+    };
+
+    // Intercept clicks on the document
+    document.addEventListener('click', handleClick, true);
+
+    return () => {
+      document.removeEventListener('click', handleClick, true);
+    };
+  }, [messages, hasSubmittedFeedback, questionnaireOpen, isNavigatingAway]);
+
+  // Custom navigation function that checks for survey
+  const navigateWithSurveyCheck = (url: string) => {
+    // Don't intercept if navigating to another conversation (still on chat page)
+    const isChatNavigation = url.startsWith('/chat/');
+    
+    if (!isChatNavigation && messages.length > 0 && !hasSubmittedFeedback && !questionnaireOpen && !isNavigatingAway) {
+      pendingNavigationRef.current = url;
+      setQuestionnaireOpen(true);
+    } else {
+      // Only set isNavigatingAway after navigation is initiated to prevent race conditions
+      router.push(url);
+      // Set state after router.push to allow click handlers to intercept if needed
+      // Use setTimeout to ensure state update happens after current execution context
+      setTimeout(() => setIsNavigatingAway(true), 0);
+    }
+  };
+
 
 
   const fetchPersona = async () => {
@@ -142,7 +246,7 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
       return;
     }
 
-    router.push(`/chat/${persona}/${conversationData.id}`);
+    navigateWithSurveyCheck(`/chat/${persona}/${conversationData.id}`);
   };
 
   const sendMessage = async (content: string) => {
@@ -460,10 +564,59 @@ Remember: You ARE this persona. Act accordingly.
 
   const handleEndChat = () => {
     // Go directly to questionnaire (user can skip if they want)
-    setQuestionnaireOpen(true);
+    if (!hasSubmittedFeedback && messages.length > 0) {
+      pendingNavigationRef.current = "/personas";
+      setQuestionnaireOpen(true);
+    } else {
+      // If already submitted or no messages, just navigate
+      setIsNavigatingAway(true);
+      router.push("/personas");
+    }
   };
 
   const handleQuestionnaireSubmit = async (responses: any) => {
+    // Set submitting state FIRST to prevent race conditions - this must happen synchronously
+    // before any async operations to prevent concurrent submissions from passing the check
+    if (isSubmittingFeedback || hasSubmittedFeedback) {
+      alert('You have already submitted feedback for this conversation.');
+      setQuestionnaireOpen(false);
+      const destination = pendingNavigationRef.current || "/personas";
+      pendingNavigationRef.current = null;
+      setIsNavigatingAway(true);
+      router.push(destination);
+      return;
+    }
+
+    // Set submitting state immediately to prevent double-clicks and race conditions
+    setIsSubmittingFeedback(true);
+
+    // Check database first to prevent race conditions
+    const { data: existingFeedback, error: checkError } = await supabase
+      .from("feedback_questionnaire")
+      .select("id")
+      .eq("conversation_id", conversation)
+      .maybeSingle();
+    
+    // Handle query errors properly instead of silently ignoring them
+    if (checkError) {
+      setIsSubmittingFeedback(false);
+      console.error('Error checking for existing feedback:', checkError);
+      alert(`There was an error checking for existing feedback: ${checkError.message || 'Unknown error'}. Please try again.`);
+      return;
+    }
+    
+    if (existingFeedback) {
+      alert('You have already submitted feedback for this conversation.');
+      setHasSubmittedFeedback(true);
+      setIsSubmittingFeedback(false);
+      setQuestionnaireOpen(false);
+      const destination = pendingNavigationRef.current || "/personas";
+      pendingNavigationRef.current = null;
+      setIsNavigatingAway(true);
+      router.push(destination);
+      return;
+    }
+
     console.log('Submitting feedback responses:', responses);
     console.log('Conversation ID:', conversation);
     console.log('Persona ID:', persona);
@@ -492,24 +645,63 @@ Remember: You ARE this persona. Act accordingly.
     
     console.log('Prepared feedback data:', feedbackData);
     
-    const { data, error } = await supabase
-      .from("feedback_questionnaire")
-      .insert([feedbackData]);
-    
-    if (error) {
-      console.error('Error submitting feedback:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      alert(`There was an error submitting your feedback: ${error.message || 'Unknown error'}. Please try again.`);
-    } else {
+    try {
+      // Attempt insert - database unique constraint will prevent duplicates
+      // This is atomic and handles race conditions at the database level
+      const { data, error } = await supabase
+        .from("feedback_questionnaire")
+        .insert([feedbackData]);
+      
+      if (error) {
+        // Check if it's a duplicate key error (unique constraint violation)
+        if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
+          // Duplicate detected - another request inserted between our check and insert
+          alert('You have already submitted feedback for this conversation.');
+          setHasSubmittedFeedback(true);
+          setIsSubmittingFeedback(false);
+          setQuestionnaireOpen(false);
+          const destination = pendingNavigationRef.current || "/personas";
+          pendingNavigationRef.current = null;
+          setIsNavigatingAway(true);
+          router.push(destination);
+          return;
+        }
+        // Other error - reset submitting state to allow retry
+        setIsSubmittingFeedback(false);
+        console.error('Error submitting feedback:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        alert(`There was an error submitting your feedback: ${error.message || 'Unknown error'}. Please try again.`);
+        return;
+      }
+      
+      // Success - only set state after successful database insert
       console.log('Feedback submitted successfully:', data);
+      setHasSubmittedFeedback(true);
+      setIsSubmittingFeedback(false);
       setQuestionnaireOpen(false);
-      router.push("/personas");
+      setIsNavigatingAway(true);
+      // Navigate to pending destination or default to personas
+      const destination = pendingNavigationRef.current || "/personas";
+      pendingNavigationRef.current = null;
+      router.push(destination);
+    } catch (error: any) {
+      // Catch any unexpected errors (network issues, etc.)
+      setIsSubmittingFeedback(false);
+      console.error('Unexpected error submitting feedback:', error);
+      alert(`There was an error submitting your feedback: ${error.message || 'Unknown error'}. Please try again.`);
+      // Don't set hasSubmittedFeedback on error - allow retry
     }
   };
 
   const handleSkipQuestionnaire = () => {
+    // Don't set hasSubmittedFeedback to true when skipping - user hasn't actually submitted feedback
+    // This allows the warning system to continue working on subsequent navigation attempts
     setQuestionnaireOpen(false);
-    router.push("/personas");
+    setIsNavigatingAway(true);
+    // Navigate to pending destination or default to personas
+    const destination = pendingNavigationRef.current || "/personas";
+    pendingNavigationRef.current = null;
+    router.push(destination);
   };
 
 

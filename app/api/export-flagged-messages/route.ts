@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { convertFlaggedMessagesToJSONL } from "@/lib/feedback-export";
+import { convertFlaggedMessagesToJSONL, convertFlaggedMessagesToEmbeddingJSONL } from "@/lib/feedback-export";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("endDate") || undefined;
     const severity = searchParams.get("severity") || undefined;
     const status = searchParams.get("status") || "resolved"; // Only export resolved/approved flags
+    const format = searchParams.get("format") || "embedding"; // "embedding" or "finetuning"
 
     // Build query for flagged messages
     let flaggedQuery = supabaseAdmin
@@ -177,13 +178,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Convert to JSONL format
-    const jsonlContent = convertFlaggedMessagesToJSONL(flaggedData);
+    // Convert to JSONL format based on selected format
+    const jsonlContent = format === "finetuning"
+      ? convertFlaggedMessagesToJSONL(flaggedData)
+      : convertFlaggedMessagesToEmbeddingJSONL(flaggedData);
 
-    // Generate filename with timestamp
+    // Generate filename with timestamp and format
     const timestamp = new Date().toISOString().split("T")[0];
     const severityStr = severity ? `_${severity}` : "";
-    const filename = `flagged_messages_negative_examples${severityStr}_${timestamp}.jsonl`;
+    const formatSuffix = format === "embedding" ? "_embedding" : "_finetuning";
+    const filename = `flagged_messages_negative_examples${formatSuffix}${severityStr}_${timestamp}.jsonl`;
 
     // Return as downloadable file
     return new NextResponse(jsonlContent, {

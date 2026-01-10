@@ -215,7 +215,8 @@ export async function queryFeedbackConversations(
 }
 
 /**
- * Format conversation into Mistral chat format
+ * Format conversation into Mistral chat format (for fine-tuning)
+ * @deprecated Use formatConversationForEmbedding for RAG/embedding purposes
  */
 export function formatConversationForMistral(conversation: FeedbackConversation): string {
   const parts: string[] = [];
@@ -241,7 +242,27 @@ export function formatConversationForMistral(conversation: FeedbackConversation)
 }
 
 /**
- * Convert conversations to JSONL format for training
+ * Format conversation as plain text for embedding generation (RAG format)
+ * Simple "User:" and "Assistant:" format suitable for embeddings
+ */
+export function formatConversationForEmbedding(conversation: FeedbackConversation): string {
+  const parts: string[] = [];
+
+  // Build conversation history in plain text format
+  for (const message of conversation.messages) {
+    if (message.sender === "user") {
+      parts.push(`User: ${message.content}`);
+    } else if (message.sender === "bot") {
+      parts.push(`Assistant: ${message.content}`);
+    }
+  }
+
+  return parts.join("\n");
+}
+
+/**
+ * Convert conversations to JSONL format for training (fine-tuning format)
+ * @deprecated Use convertToEmbeddingJSONL for RAG/embedding purposes
  */
 export function convertToJSONL(conversations: FeedbackConversation[]): string {
   const lines: string[] = [];
@@ -269,8 +290,38 @@ export function convertToJSONL(conversations: FeedbackConversation[]): string {
 }
 
 /**
- * Format flagged message as negative example for training
- * Shows the user input and the problematic bot response
+ * Convert conversations to JSONL format for embedding generation (RAG format)
+ * Plain text format suitable for embedding and adding to vector database
+ */
+export function convertToEmbeddingJSONL(conversations: FeedbackConversation[]): string {
+  const lines: string[] = [];
+
+  for (const conversation of conversations) {
+    const formattedText = formatConversationForEmbedding(conversation);
+    
+    // Embedding-ready format with plain text content
+    const embeddingExample = {
+      type: "positive_example",
+      content: formattedText,
+      metadata: {
+        conversation_id: conversation.conversation_id,
+        persona_id: conversation.persona_id,
+        average_score: conversation.averageScore,
+        feedback_scores: conversation.feedback,
+        message_count: conversation.messages.length,
+        created_at: conversation.feedback.created_at,
+      },
+    };
+
+    lines.push(JSON.stringify(embeddingExample));
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Format flagged message as negative example for training (fine-tuning format)
+ * @deprecated Use formatFlaggedMessageAsNegativeEmbedding for RAG/embedding purposes
  */
 export function formatFlaggedMessageAsNegative(
   userInput: string,
@@ -292,7 +343,20 @@ export function formatFlaggedMessageAsNegative(
 }
 
 /**
- * Convert flagged messages to JSONL format for negative training examples
+ * Format flagged message as negative example for embedding (RAG format)
+ * Plain text format suitable for embedding and adding to flag_negative_examples table
+ */
+export function formatFlaggedMessageAsNegativeEmbedding(
+  userInput: string,
+  flaggedResponse: string,
+  reason: string
+): string {
+  return `User: ${userInput}\nAssistant: ${flaggedResponse}`;
+}
+
+/**
+ * Convert flagged messages to JSONL format for negative training examples (fine-tuning format)
+ * @deprecated Use convertFlaggedMessagesToEmbeddingJSONL for RAG/embedding purposes
  */
 export function convertFlaggedMessagesToJSONL(
   flaggedData: Array<{
@@ -327,6 +391,48 @@ export function convertFlaggedMessagesToJSONL(
     };
 
     lines.push(JSON.stringify(trainingExample));
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Convert flagged messages to JSONL format for embedding (RAG format)
+ * Plain text format suitable for embedding and adding to flag_negative_examples table
+ */
+export function convertFlaggedMessagesToEmbeddingJSONL(
+  flaggedData: Array<{
+    userInput: string;
+    flaggedResponse: string;
+    reason: string;
+    severity: string;
+    conversation_id: string;
+    persona_id: string;
+    message_id: string;
+  }>
+): string {
+  const lines: string[] = [];
+
+  for (const flag of flaggedData) {
+    const formattedText = formatFlaggedMessageAsNegativeEmbedding(
+      flag.userInput,
+      flag.flaggedResponse,
+      flag.reason
+    );
+    
+    const embeddingExample = {
+      type: "negative_example",
+      content: formattedText,
+      metadata: {
+        conversation_id: flag.conversation_id,
+        persona_id: flag.persona_id,
+        message_id: flag.message_id,
+        reason: flag.reason,
+        severity: flag.severity,
+      },
+    };
+
+    lines.push(JSON.stringify(embeddingExample));
   }
 
   return lines.join("\n");

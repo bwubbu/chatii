@@ -96,6 +96,8 @@ export default function DeveloperPortal() {
   };
 
   const generateApiKey = async () => {
+    if (!requireAuth()) return;
+
     if (!newKeyName.trim()) {
       setSubmitMessage("Please enter a name for your API key");
       return;
@@ -112,7 +114,7 @@ export default function DeveloperPortal() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        setSubmitMessage("Please log in to generate API keys");
+        router.push("/login");
         return;
       }
 
@@ -146,13 +148,18 @@ export default function DeveloperPortal() {
   };
 
   const deleteApiKey = async (keyId: string) => {
+    if (!requireAuth()) return;
+
     if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) {
       return;
     }
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        router.push("/login");
+        return;
+      }
 
       const response = await fetch("/api/api-keys", {
         method: "DELETE",
@@ -192,24 +199,13 @@ export default function DeveloperPortal() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#171717] text-white">
-        <div className="container mx-auto px-6 py-12">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold mb-4">Developer Portal</h1>
-            <p className="text-xl text-gray-300 mb-8">
-              Please log in to access the developer features
-            </p>
-            <Button onClick={() => router.push("/login")} size="lg">
-              Login to Continue
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  const requireAuth = () => {
+    if (!user) {
+      router.push("/login");
+      return false;
+    }
+    return true;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f0f10] via-[#1a1a1f] to-[#23232a] text-white">
@@ -287,7 +283,10 @@ export default function DeveloperPortal() {
                   </p>
                 </div>
                 <Button 
-                  onClick={generateApiKey} 
+                  onClick={() => {
+                    if (!requireAuth()) return;
+                    generateApiKey();
+                  }} 
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white" 
                   disabled={isGenerating || !newKeyName.trim() || !selectedPersona}
                 >
@@ -444,22 +443,76 @@ export default function DeveloperPortal() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold text-white mb-2">Make API Calls</h3>
-                      <p className="text-gray-300 text-sm mb-2">
-                        Use your API key to chat with personas. Send a POST request to <code className="bg-[#23232a] px-2 py-1 rounded text-xs text-gray-300 border border-gray-700">http://localhost:8002/chat</code> with:
+                      <p className="text-gray-300 text-sm mb-3">
+                        Use your API key to make requests to our chat endpoint. Include your API key in the <code className="bg-[#23232a] px-1.5 py-0.5 rounded text-xs">Authorization</code> header.
                       </p>
-                      <pre className="bg-[#23232a] p-3 rounded text-xs text-green-400 overflow-x-auto border border-gray-700">
+                      
+                      <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700 mb-3">
+                        <p className="text-xs text-gray-400 mb-2 font-semibold">Endpoint:</p>
+                        <code className="text-green-400 text-sm">POST /api/v1/chat</code>
+                      </div>
+
+                      <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700 mb-3">
+                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Request (cURL):</p>
+                        <pre className="text-xs text-gray-300 overflow-x-auto">
+{`curl -X POST https://your-domain.com/api/v1/chat \\
+  -H "Authorization: Bearer sk_your_api_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "message": "Hello!",
+    "conversation_history": [],
+    "temperature": 0.7,
+    "max_tokens": 200
+  }'`}
+                        </pre>
+                      </div>
+
+                      <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700 mb-3">
+                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Request (JavaScript):</p>
+                        <pre className="text-xs text-gray-300 overflow-x-auto">
+{`const response = await fetch('https://your-domain.com/api/v1/chat', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer sk_your_api_key_here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    message: 'Hello!',
+    conversation_history: [],
+    temperature: 0.7,
+    max_tokens: 200
+  })
+});
+
+const data = await response.json();
+console.log(data.response);`}
+                        </pre>
+                      </div>
+
+                      <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700">
+                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Response:</p>
+                        <pre className="text-xs text-gray-300 overflow-x-auto">
 {`{
-  "message": "Hello!",
-  "user_demographics": {
-    "age": "25",
-    "role": "student"
+  "response": "Hello! How can I help you today?",
+  "model": "gemini-2.0-flash",
+  "persona": {
+    "id": "...",
+    "name": "Hotel Receptionist"
+  },
+  "usage": {
+    "remaining": 99,
+    "limit": 100
+  },
+  "metadata": {
+    "processing_time_ms": 1234,
+    "timestamp": "2024-01-15T10:30:00Z"
   }
 }`}
-                      </pre>
-                      <p className="text-gray-300 text-sm mt-2">
-                        Include your API key in the Authorization header: <code className="bg-[#23232a] px-2 py-1 rounded text-xs text-gray-300 border border-gray-700">Bearer sk_...</code>
-                        <br />
-                        <span className="text-yellow-400 text-xs">Note: The persona ID is automatically determined from your API key, so you don't need to include it in the request body.</span>
+                        </pre>
+                      </div>
+
+                      <p className="text-gray-300 text-sm mt-3">
+                        <strong className="text-yellow-400">Note:</strong> The persona is automatically determined from your API key. You don't need to specify it in your requests. Rate limit: 100 requests per hour per key.
                       </p>
                     </div>
                   </div>
@@ -469,11 +522,36 @@ export default function DeveloperPortal() {
                       4
                     </div>
                     <div className="flex-1">
+                      <h3 className="font-semibold text-white mb-2">Maintain Conversation Context</h3>
+                      <p className="text-gray-300 text-sm mb-3">
+                        To maintain conversation context, include the conversation history in your requests. The AI will remember previous messages in the conversation.
+                      </p>
+                      <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700">
+                        <pre className="text-xs text-gray-300 overflow-x-auto">
+{`{
+  "message": "What did I say earlier?",
+  "conversation_history": [
+    { "role": "user", "content": "My name is John" },
+    { "role": "assistant", "content": "Nice to meet you, John!" }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 200
+}`}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white">
+                      5
+                    </div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-white mb-2">What Are API Keys For?</h3>
                       <p className="text-gray-300 text-sm">
                         API keys let you integrate our fairness-trained AI personas into your own applications. Use them for customer service bots, 
                         educational platforms, health apps, or any project that needs ethical, respectful AI interactions. Each key has a rate limit of 
-                        100 requests per hour to ensure fair usage.
+                        100 requests per hour to ensure fair usage. <strong className="text-yellow-400">You use our AI models</strong> - no need to set up your own!
                       </p>
                     </div>
                   </div>
@@ -483,11 +561,12 @@ export default function DeveloperPortal() {
                   <Button 
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white" 
                     onClick={() => {
+                      if (!requireAuth()) return;
                       const apiKeysTab = document.querySelector('[value="api-keys"]') as HTMLElement;
                       apiKeysTab?.click();
                     }}
                   >
-                    Get Started - Generate API Key <ArrowRight className="w-4 h-4 ml-2" />
+                    {user ? "Get Started - Generate API Key" : "Login to Get Started"} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
               </CardContent>
