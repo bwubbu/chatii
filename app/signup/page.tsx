@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +22,10 @@ import {
 } from "@/components/ui/select"
 
 export default function SignUpPage() {
+  const searchParams = useSearchParams()
+  const isOAuthComplete = searchParams.get('complete_profile') === 'true'
+  const oauthProvider = searchParams.get('oauth')
+  
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -33,6 +38,26 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isOAuthUser, setIsOAuthUser] = useState(false)
+
+  // Check if user is authenticated via OAuth and needs to complete profile
+  useEffect(() => {
+    const checkOAuthUser = async () => {
+      if (isOAuthComplete) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          setIsOAuthUser(true)
+          // Pre-fill email and username from OAuth user
+          setEmail(user.email || "")
+          setUsername(user.user_metadata?.username || user.user_metadata?.full_name || user.email?.split('@')[0] || "")
+          // OAuth users don't need password
+          setPassword("oauth-user")
+          setConfirmPassword("oauth-user")
+        }
+      }
+    }
+    checkOAuthUser()
+  }, [isOAuthComplete])
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
     texts: ["Welcome to RamahAI"],
@@ -64,27 +89,7 @@ export default function SignUpPage() {
     setError(null)
     setSuccess(null)
     
-    // Validate email
-    if (!email || email.trim() === "") {
-      setError("Please enter an email address.")
-      return
-    }
-    
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email.trim())) {
-      setError("Please enter a valid email address.")
-      return
-    }
-    
-    if (password !== confirmPassword) {
-      setError("Passwords do not match!")
-      return
-    }
-    if (!agreeToTerms) {
-      setError("You must agree to the terms.")
-      return
-    }
+    // Validate demographic information (required for both regular and OAuth signup)
     if (!nationality || !age || !race || !gender) {
       setError("Please fill in all demographic information (Nationality, Age, Race, and Gender).")
       return
@@ -94,7 +99,92 @@ export default function SignUpPage() {
       setError("Please enter a valid age.")
       return
     }
+    
+    if (!agreeToTerms) {
+      setError("You must agree to the terms.")
+      return
+    }
+
     setLoading(true)
+
+    // Handle OAuth users who just need to complete their profile
+    if (isOAuthUser) {
+      try {
+        // Get current authenticated user
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError || !user) {
+          setError("You must be signed in to complete your profile. Please try signing in again.")
+          setLoading(false)
+          return
+        }
+
+        // Update username in auth metadata if provided
+        if (username && username.trim() !== "") {
+          await supabase.auth.updateUser({
+            data: { username: username.trim() }
+          })
+        }
+
+        // Create user profile via API route
+        const response = await fetch("/api/user-profiles", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            nationality,
+            age: ageNum,
+            race,
+            gender,
+          }),
+        })
+
+        const result = await response.json()
+
+        if (!response.ok) {
+          console.error("Error creating user profile:", result)
+          const errorDetails = result.details || result.error || 'Unknown error'
+          const errorCode = result.code ? ` (Error code: ${result.code})` : ''
+          setError(`Failed to save profile: ${errorDetails}${errorCode}. Please contact support if this issue persists.`)
+          setLoading(false)
+        } else {
+          setSuccess("Profile completed successfully! Redirecting...")
+          // Redirect to home page after a short delay
+          setTimeout(() => {
+            window.location.href = "/"
+          }, 1500)
+        }
+      } catch (apiError: any) {
+        console.error("Error calling profile API:", apiError)
+        setError("Failed to save profile. Please contact support.")
+        setLoading(false)
+      }
+      return
+    }
+
+    // Regular signup flow (non-OAuth users)
+    // Validate email
+    if (!email || email.trim() === "") {
+      setError("Please enter an email address.")
+      setLoading(false)
+      return
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email.trim())) {
+      setError("Please enter a valid email address.")
+      setLoading(false)
+      return
+    }
+    
+    if (password !== confirmPassword) {
+      setError("Passwords do not match!")
+      setLoading(false)
+      return
+    }
+    
     const trimmedEmail = email.trim()
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: trimmedEmail,
@@ -130,7 +220,10 @@ export default function SignUpPage() {
 
         if (!response.ok) {
           console.error("Error creating user profile:", result)
-          setError(`Account created but failed to save profile: ${result.error || result.details || 'Unknown error'}. Please contact support.`)
+          // Show more detailed error message
+          const errorDetails = result.details || result.error || 'Unknown error'
+          const errorCode = result.code ? ` (Error code: ${result.code})` : ''
+          setError(`Account created but failed to save profile: ${errorDetails}${errorCode}. Please contact support if this issue persists.`)
         } else {
           setSuccess("Check your email for a confirmation link!")
         }
@@ -148,11 +241,39 @@ export default function SignUpPage() {
     setLoading(true)
     setError(null)
     setSuccess(null)
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google" })
-    if (error) {
-      setError(error.message)
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({ 
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      })
+      
+      if (error) {
+        // Check for specific error types
+        if (error.message?.includes('provider is not enabled') || error.message?.includes('Unsupported provider')) {
+          setError("Google sign-in is not enabled. Please contact support or use email sign-up instead.")
+        } else {
+          setError(error.message || "Failed to sign in with Google. Please try again.")
+        }
+        setLoading(false)
+      }
+      // If successful, the user will be redirected to Google, so we don't setLoading(false) here
+      // The redirect will happen automatically
+    } catch (err: any) {
+      console.error("Google sign-up error:", err)
+      if (err?.message?.includes('provider is not enabled') || err?.message?.includes('Unsupported provider')) {
+        setError("Google sign-in is not enabled. Please contact support or use email sign-up instead.")
+      } else {
+        setError("An error occurred during Google sign-up. Please try again.")
+      }
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -185,11 +306,13 @@ export default function SignUpPage() {
           <Card className="bg-[#0F0F0F] border-gray-600 shadow-2xl shadow-black/50">
             <CardContent className="p-8">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">Sign Up</h2>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {isOAuthUser ? "Complete Your Profile" : "Sign Up"}
+                </h2>
                 <p className="text-gray-400 text-sm">
-                  Create an account
-                  <br />
-                  to RamahAI to its fullest!
+                  {isOAuthUser 
+                    ? "Please provide some information to personalize your experience"
+                    : "Create an account to RamahAI to its fullest!"}
                 </p>
               </div>
 
@@ -202,77 +325,103 @@ export default function SignUpPage() {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="username" className="text-gray-300 text-sm">
-                    Username
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      id="username"
-                      type="text"
-                      placeholder="Enter a username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
-                      required
-                    />
-                  </div>
-                </div>
+                {!isOAuthUser && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="username" className="text-gray-300 text-sm">
+                        Username
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <Input
+                          id="username"
+                          type="text"
+                          placeholder="Enter a username"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                          required
+                        />
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-gray-300 text-sm">
-                    Email Address
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter an email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
-                      required
-                    />
-                  </div>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-gray-300 text-sm">
+                        Email Address
+                      </Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="Enter an email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                          required
+                        />
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-gray-300 text-sm">
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Enter a password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
-                      required
-                    />
-                  </div>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password" className="text-gray-300 text-sm">
+                        Password
+                      </Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <Input
+                          id="password"
+                          type="password"
+                          placeholder="Enter a password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                          required
+                        />
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="text-gray-300 text-sm">
-                    Confirm Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirm your password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
-                      required
-                    />
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword" className="text-gray-300 text-sm">
+                        Confirm Password
+                      </Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          placeholder="Confirm your password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {isOAuthUser && (
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-gray-300 text-sm">
+                      Username (Optional)
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        id="username"
+                        type="text"
+                        placeholder="Enter a username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Signed in as: {email}
+                    </p>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="nationality" className="text-gray-300 text-sm">
@@ -378,25 +527,29 @@ export default function SignUpPage() {
                   disabled={!agreeToTerms || loading}
                   className="w-full bg-white text-gray-900 hover:bg-gray-100 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? "Signing Up..." : "Sign Up"}
+                  {loading 
+                    ? (isOAuthUser ? "Completing Profile..." : "Signing Up...") 
+                    : (isOAuthUser ? "Complete Profile" : "Sign Up")}
                 </Button>
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-600" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-[#0F0F0F] text-gray-400">Or Continue With</span>
-                  </div>
-                </div>
+                {!isOAuthUser && (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-600" />
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-[#0F0F0F] text-gray-400">Or Continue With</span>
+                      </div>
+                    </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGoogleSignUp}
-                  className="w-full bg-white text-gray-900 border-gray-300 hover:bg-gray-100"
-                  disabled={loading}
-                >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleGoogleSignUp}
+                      className="w-full bg-white text-gray-900 border-gray-300 hover:bg-gray-100"
+                      disabled={loading}
+                    >
                   <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                     <path
                       fill="currentColor"
@@ -417,6 +570,8 @@ export default function SignUpPage() {
                   </svg>
                   Google
                 </Button>
+                  </>
+                )}
               </form>
 
               <p className="text-center text-sm text-gray-400 mt-6">

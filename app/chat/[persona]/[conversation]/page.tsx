@@ -37,7 +37,7 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [messages, setMessages] = useState<Message[]>([]);
   const [personaData, setPersonaData] = useState<Persona | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [demographics, setDemographics] = useState<{ nationality?: string; age?: number; race?: string; gender?: string }>({});
+  const [demographics, setDemographics] = useState<{ nationality?: string; age?: number; race?: string; gender?: string; username?: string; firstName?: string }>({});
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flagModalOpen, setFlagModalOpen] = useState(false);
@@ -205,6 +205,11 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
         return;
       }
 
+      // Get username from auth metadata
+      const username = user.user_metadata?.username || user.email?.split('@')[0] || undefined;
+      // Extract first name (first word of username, or full username if single word)
+      const firstName = username ? username.split(' ')[0] : undefined;
+
       // Fetch user demographics from user_profiles (from registration)
       const { data, error } = await supabase
         .from("user_profiles")
@@ -214,16 +219,22 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
 
       if (error) {
         console.error("Error fetching user demographics:", error);
-        setDemographics({});
+        // Still set username/firstName even if profile fetch fails
+        setDemographics({
+          username,
+          firstName,
+        });
         return;
       }
 
-      // Set demographics from user profile
+      // Set demographics from user profile and auth metadata
       setDemographics({
         nationality: data?.nationality || undefined,
         age: data?.age || undefined,
         race: data?.race || undefined,
         gender: data?.gender || undefined,
+        username,
+        firstName,
       });
     } catch (error) {
       console.error("Error in fetchDemographics:", error);
@@ -417,17 +428,21 @@ FAIRNESS & RESPECT:
 - Treat all users with equal respect regardless of their background
 
 User Context (use to guide your tone, cultural adaptation, and communication style, but don't mention these details explicitly):
+- Username: ${demographics.username || 'unknown'}
+${demographics.firstName ? `- First Name: ${demographics.firstName}` : ''}
 - Nationality: ${demographics.nationality || 'unknown'}
 - Age: ${demographics.age || 'unknown'}
 - Race: ${demographics.race || 'unknown'}
 - Gender: ${demographics.gender || 'unknown'}
 
 IMPORTANT: Use this demographic information to:
+${demographics.firstName ? `- **ALWAYS use the user's first name "${demographics.firstName}" when addressing them directly**, especially when they ask you to use their name or when it's natural to do so in conversation` : '- When the user asks you to use their name, address them by their first name if you know it'}
 - Adapt your communication style to be culturally appropriate
-- Choose appropriate honorifics and formality levels
+- Choose appropriate honorifics and formality levels based on the user's preferences and cultural background
 - Understand cultural context for politeness and respect
 - Adapt your tone based on the user's background
 - Be respectful and culturally aware in your responses
+${demographics.firstName ? `- If the user asks you to call them by their first name or to drop formal titles, use "${demographics.firstName}" instead of honorifics` : '- If the user asks you to call them by their first name, use their actual first name (not a placeholder like "[User\'s First Name]")'}
 ${ragContext}
 Remember: You ARE this persona. Act accordingly.
 `;

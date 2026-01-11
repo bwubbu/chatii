@@ -1,13 +1,135 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Users, Sparkles, Zap, MessageCircle, Shield, Heart, Brain, CheckCircle, Star } from "lucide-react"
 import { ChatDemo } from "@/components/chat/ChatDemo"
+import { ProfileCompletionModal } from "@/components/ProfileCompletionModal"
+import { supabase } from "@/supabaseClient"
 
 export default function Home() {
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | undefined>();
+  const [userName, setUserName] = useState<string | undefined>();
+
+  useEffect(() => {
+    // Check for OAuth success from URL params (works on both client and server)
+    const urlParams = new URLSearchParams(window.location.search);
+    const isOAuthSuccess = urlParams.get('oauth_success') === 'true';
+    
+    console.log("🏠 Home page useEffect running");
+    console.log("📍 Current URL:", window.location.href);
+    console.log("🔑 OAuth success param:", isOAuthSuccess);
+    
+    const checkProfileCompletion = async (user: any) => {
+      if (!user) {
+        console.log("checkProfileCompletion: No user provided");
+        return;
+      }
+
+      console.log("checkProfileCompletion: Checking profile for user:", user.id, user.email);
+
+      try {
+        setUserEmail(user.email || undefined);
+        setUserName(user.user_metadata?.username || user.user_metadata?.full_name || undefined);
+
+        // Check if user profile exists
+        const { data: profile, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("user_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        console.log("Profile check result:", { 
+          profile, 
+          profileError, 
+          userId: user.id,
+          errorCode: profileError?.code,
+          errorMessage: profileError?.message 
+        });
+
+        // If profile doesn't exist and no error (error code PGRST116 means "not found" which is fine)
+        if (!profile && (!profileError || profileError.code === 'PGRST116')) {
+          console.log("✅ No profile found, will show modal in 1.5 seconds");
+          // Small delay to let the page render first
+          setTimeout(() => {
+            console.log("Setting showProfileModal to true");
+            setShowProfileModal(true);
+          }, 1500);
+        } else if (profile) {
+          console.log("✅ Profile exists, modal will not show");
+        } else if (profileError && profileError.code !== 'PGRST116') {
+          console.error("❌ Error checking profile:", profileError);
+        }
+      } catch (error) {
+        console.error("❌ Exception in checkProfileCompletion:", error);
+      }
+    };
+
+    // Listen for auth state changes (this is the most reliable way for OAuth)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔐 Auth state changed:", event, session?.user?.id, session?.user?.email);
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log("✅ SIGNED_IN event detected, waiting 1 second then checking profile");
+        // Wait a bit for everything to settle after OAuth redirect
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Check profile when user signs in
+        await checkProfileCompletion(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        console.log("👋 SIGNED_OUT event detected");
+        setShowProfileModal(false);
+        setUserEmail(undefined);
+        setUserName(undefined);
+      } else {
+        console.log("ℹ️ Other auth event:", event);
+      }
+    });
+
+    // Also do an initial check in case user is already signed in
+    const initialCheck = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isOAuthSuccess = urlParams.get('oauth_success') === 'true';
+      
+      console.log("🔍 Running initial check, isOAuthSuccess:", isOAuthSuccess);
+      // If this is an OAuth redirect, wait longer for session to be established
+      const waitTime = isOAuthSuccess ? 2000 : 500;
+      console.log(`⏳ Waiting ${waitTime}ms before checking user...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      // If no user session, silently return (this is expected for non-authenticated users)
+      if (userError) {
+        // Only log if it's not a missing session error (which is expected)
+        if (userError.message !== 'Auth session missing!') {
+          console.error("❌ Error getting user:", userError);
+        } else {
+          console.log("ℹ️ No session (user not logged in)");
+        }
+        return;
+      }
+      
+      if (user) {
+        console.log("✅ User found in initial check:", user.id, user.email);
+        await checkProfileCompletion(user);
+      } else {
+        console.log("ℹ️ No user found in initial check");
+      }
+    };
+
+    // Run initial check
+    initialCheck();
+
+    return () => {
+      console.log("🧹 Cleaning up auth subscription");
+      subscription.unsubscribe();
+    };
+  }, []); // Empty deps - we read URL params inside the effect
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f0f10] via-[#1a1a1f] to-[#23232a] relative overflow-hidden">
       {/* Background Effects */}
@@ -96,6 +218,14 @@ export default function Home() {
           </div>
         </section>
       </div>
+
+      {/* Profile Completion Modal */}
+      <ProfileCompletionModal
+        open={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        userEmail={userEmail}
+        userName={userName}
+      />
     </div>
   )
 }

@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,12 +21,61 @@ import {
 } from "@/components/ui/dialog"
 
 export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+
+  // Handle OAuth redirect with tokens in hash fragment
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      // Check if we have OAuth tokens in the hash fragment
+      const hash = window.location.hash
+      if (hash && hash.includes('access_token')) {
+        console.log('OAuth tokens detected in hash fragment')
+        
+        // Parse hash fragment
+        const hashParams = new URLSearchParams(hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        
+        if (accessToken && refreshToken) {
+          try {
+            // Set the session with the tokens
+            const { data, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+            
+            if (sessionError) {
+              console.error('Error setting OAuth session:', sessionError)
+              setError(`Authentication error: ${sessionError.message}`)
+              // Clear the hash
+              window.history.replaceState(null, '', window.location.pathname + window.location.search)
+              return
+            }
+            
+            if (data?.user) {
+              console.log('OAuth login successful, redirecting to homepage')
+              // Clear the hash and redirect to homepage with success flag
+              window.history.replaceState(null, '', '/?oauth_success=true')
+              router.push('/?oauth_success=true')
+            }
+          } catch (err: any) {
+            console.error('Error handling OAuth callback:', err)
+            setError('Failed to complete authentication. Please try again.')
+            // Clear the hash
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          }
+        }
+      }
+    }
+    
+    handleOAuthCallback()
+  }, [router])
 
   const { displayText: welcomeText, isComplete: welcomeComplete } = useTypingAnimation({
     texts: ["Welcome back to RamahAI"],
@@ -85,16 +135,37 @@ export default function LoginPage() {
     setError(null)
     setIsLoggingIn(true)
     try {
-      const { error } = await supabase.auth.signInWithOAuth({ provider: "google" })
+      const { data, error } = await supabase.auth.signInWithOAuth({ 
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      })
+      
       if (error) {
-        setError(error.message)
+        // Check for specific error types
+        if (error.message?.includes('provider is not enabled') || error.message?.includes('Unsupported provider')) {
+          setError("Google sign-in is not enabled. Please contact support or use email sign-in instead.")
+        } else {
+          setError(error.message || "Failed to sign in with Google. Please try again.")
+        }
         setIsLoggingIn(false)
+        setLoading(false)
       }
-      // Note: OAuth will redirect to Google, so the popup will remain until redirect
-    } catch (err) {
+      // If successful, the user will be redirected to Google, so we don't setLoading(false) here
+      // The redirect will happen automatically
+    } catch (err: any) {
       console.error("Google sign-in error:", err)
+      if (err?.message?.includes('provider is not enabled') || err?.message?.includes('Unsupported provider')) {
+        setError("Google sign-in is not enabled. Please contact support or use email sign-in instead.")
+      } else {
+        setError("An error occurred during Google sign-in. Please try again.")
+      }
       setIsLoggingIn(false)
-    } finally {
       setLoading(false)
     }
   }

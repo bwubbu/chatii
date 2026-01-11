@@ -102,3 +102,4 @@ Thumbs.db
 # Google Cloud service account key file (should never be committed)
 # Use GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable instead
 ramahai-service-account-key.json
+supabase/migrations/20240319000000_create_user_profiles.sql
