@@ -1,0 +1,138 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    SYSTEM ARCHITECTURE DIAGRAM FOR CHATII                    ║
+║                              (Updated Version)                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              USER                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ User Interaction
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    FRONTEND (CLIENT SIDE)                                    │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Deployment: Vercel                                                   │   │
+│  │ • Next.js 15                                                         │   │
+│  │ • React 19                                                           │   │
+│  │ • TypeScript                                                         │   │
+│  │ • Tailwind CSS                                                       │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  Interactions:                                                               │
+│    • HTTPS API Calls → Next.js API Routes                                   │
+│    • User Data, Conversations, Demographics, Feedback → Supabase            │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ HTTPS API Calls
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    BACKEND (SERVER SIDE)                                     │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Deployment: Vercel (Serverless Functions)                            │   │
+│  │ • Next.js API Routes                                                 │   │
+│  │ • TypeScript                                                         │   │
+│  │ • Node.js Runtime                                                    │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  API Endpoints:                                                              │
+│    • /api/trained-model      → Vertex AI / Gemini                           │
+│    • /api/v1/chat            → Public API (API Key Auth)                   │
+│    • /api/rag/retrieve       → RAG Retrieval                                │
+│    • /api/rag/retrieve-combined → Combined RAG                             │
+│    • /api/embeddings/generate → Embedding Generation                       │
+│                                                                              │
+│  Interactions:                                                               │
+│    • Calls → Vertex AI / Gemini API                                         │
+│    • Calls → OpenAI / Cohere (Embeddings)                                   │
+│    • Queries → Supabase (RAG, Data Storage)                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │                    │                    │                    │
+         │                    │                    │                    │
+         ▼                    ▼                    ▼                    ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  THIRD-PARTY │  │  THIRD-PARTY │  │  THIRD-PARTY │  │  THIRD-PARTY │
+│   SERVICES   │  │   SERVICES   │  │   SERVICES   │  │   SERVICES   │
+└──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘
+         │                    │                    │                    │
+    ┌────┴────┐          ┌────┴────┐          ┌────┴────┐          ┌────┴────┐
+    │         │          │         │          │         │          │         │
+┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐
+│Vertex │ │Gemini │ │OpenAI │ │Cohere │         │         │         │         │
+│  AI   │ │  API  │ │Embed. │ │Embed. │         │         │         │         │
+│Llama 3│ │       │ │       │ │       │         │         │         │         │
+└───────┘ └───────┘ └───────┘ └───────┘         │         │         │         │
+                                                │         │         │         │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        DATABASE SERVER                                       │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Service: Supabase                                                    │   │
+│  │ • PostgreSQL with pgvector                                            │   │
+│  │ • Supabase Auth                                                      │   │
+│  │ • Row Level Security                                                 │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  Data Storage:                                                              │
+│    • User profiles & authentication                                          │
+│    • Conversations & message history                                         │
+│    • Demographics & analytics                                                │
+│    • Feedback & questionnaires                                               │
+│    • Training sessions & scenarios                                           │
+│    • Personas & system prompts                                              │
+│    • API keys & rate limiting                                                │
+│    • Vector embeddings (RAG)                                                 │
+│    • Flagged content & training data                                         │
+│                                                                              │
+│  Interactions:                                                               │
+│    • Receives: User Data, Conversations, Demographics, Feedback              │
+│    • Provides: Vector similarity search (RAG)                                │
+│    • Provides: Training Data, Feedback Data, Flagged Content → Fine-Tuning   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ Training Data, Feedback, Flagged Content
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      FINE-TUNING PIPELINE                                    │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Framework: Unsloth                                                    │   │
+│  │ • LoRA adapters                                                       │   │
+│  │ • Models: Mistral 7B, Llama 3 variants                                │   │
+│  │ • Environment: Local / Google Colab                                    │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  Components:                                                                 │
+│    • Data preparation scripts                                                │
+│    • Training scripts (train_with_unsloth.py)                                │
+│    • Inference scripts (inference.py, lora_inference.py)                     │
+│    • Model evaluation                                                        │
+│                                                                              │
+│  Optional Deployment:                                                        │
+│    • Hugging Face Model Hub (optional)                                       │
+│    • Custom inference server (Colab/ngrok)                                   │
+│                                                                              │
+│  Note: Currently experimental. Production uses Vertex AI/Gemini.             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY CHANGES FROM OLD ARCHITECTURE:
+
+❌ REMOVED:
+   • Separate FastAPI Backend on Render.com
+   • Google Cloud Speech-to-Text API
+   • Direct Hugging Face Inference API (for production)
+
+✅ CHANGED:
+   • Backend: FastAPI (Render.com) → Next.js API Routes (Vercel)
+   • AI Models: Fine-tuned (Hugging Face) → Vertex AI Llama 3 + Gemini
+   • Fine-tuning: Production → Experimental/Training Pipeline
+   • RAG: Direct embeddings → OpenAI/Cohere embeddings in Supabase
+
+✅ ADDED:
+   • Public API (/api/v1/chat) with API key authentication
+   • Multiple LLM support with primary/fallback system
+   • Enhanced RAG with combined retrieval
+   • Training mode for data collection
+   • Admin panel for management
+
+═══════════════════════════════════════════════════════════════════════════════

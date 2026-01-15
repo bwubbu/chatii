@@ -1,0 +1,104 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
+.next
+out
+.vercel
+
+# Production
+build
+dist
+
+# Environment variables
+.env*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# AI Models and Training Files
+/Lora Model/
+/fine_tuning/scripts/miniconda.exe
+*.safetensors
+*.bin
+*.pth
+*.pt
+*.ckpt
+*.model
+*.weights
+
+# Training Data
+/fine_tuning/data/*.jsonl
+/fine_tuning/data/*.json
+/fine_tuning/data/*.txt
+/fine_tuning/data/*.csv
+
+# Model Outputs and Logs
+/fine_tuning/outputs/
+/fine_tuning/logs/
+/fine_tuning/runs/
+/fine_tuning/checkpoints/
+/fine_tuning/cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Large executables
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.deb
+*.rpm
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# Submission folders (don't include in build)
+Dockerfile/
+Docker-file/
+BuildTest/
