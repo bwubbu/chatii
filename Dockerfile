@@ -1,5 +1,5 @@
 # Repository: https://github.com/bwubbu/ramahai/tree/docker-assignment
-# Dockerfile for Next.js Chat Application
+# Dockerfile for RamahAI - My FYP
 # Alternative Assessment For WIF3005
 
 # Base image - Node.js 18 Alpine
@@ -11,7 +11,7 @@ WORKDIR /app
 # Copy package files for dependency installation
 COPY package*.json ./
 
-# Install dependencies (using --legacy-peer-deps to resolve React 19 compatibility)
+# Install dependencies
 RUN npm install --legacy-peer-deps
 
 # Copy application files
@@ -46,7 +46,7 @@ ENV GOOGLE_APPLICATION_CREDENTIALS_JSON=$GOOGLE_APPLICATION_CREDENTIALS_JSON
 # Build Next.js application
 RUN npm run build
 
-# Expose port 5000 (as required by assignment)
+# Expose port 5000
 EXPOSE 5000
 
 # Run command - start the application on port 5000
