@@ -36,12 +36,40 @@ export default function Home() {
         setUserEmail(user.email || undefined);
         setUserName(user.user_metadata?.username || user.user_metadata?.full_name || undefined);
 
-        // Check if user profile exists
-        const { data: profile, error: profileError } = await supabase
+        // Check if user profile exists with timeout
+        let timeoutId: NodeJS.Timeout | undefined = undefined;
+        const timeoutPromise = new Promise<{ data: null; error: { code: string; message: string } }>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error('Profile check timeout'));
+          }, 10000);
+        });
+        
+        const queryPromise = supabase
           .from("user_profiles")
           .select("user_id")
           .eq("user_id", user.id)
           .maybeSingle();
+        
+        let profile: any = null;
+        let profileError: any = null;
+        
+        try {
+          const result = await Promise.race([queryPromise, timeoutPromise]);
+          // If we get here, the query completed successfully
+          if (timeoutId) clearTimeout(timeoutId);
+          profile = result.data;
+          profileError = result.error;
+        } catch (error: any) {
+          // Timeout was triggered or other error
+          if (timeoutId) clearTimeout(timeoutId);
+          if (error?.message === 'Profile check timeout') {
+            console.error("❌ Profile check timed out after 10 seconds");
+            profileError = { code: 'TIMEOUT', message: 'Profile check timed out' };
+          } else {
+            // Re-throw unexpected errors
+            throw error;
+          }
+        }
 
         console.log("Profile check result:", { 
           profile, 
@@ -100,7 +128,12 @@ export default function Home() {
       console.log(`⏳ Waiting ${waitTime}ms before checking user...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Auth check timeout')), 10000)
+      );
+      
+      const authPromise = supabase.auth.getUser();
+      const { data: { user }, error: userError } = await Promise.race([authPromise, timeoutPromise]) as any;
       
       // If no user session, silently return (this is expected for non-authenticated users)
       if (userError) {

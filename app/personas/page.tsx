@@ -6,9 +6,19 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Shield, Sparkles, Users, Clock, ChevronDown, ChevronUp, Mail, CheckCircle } from "lucide-react";
+import { MessageCircle, Shield, Sparkles, Users, Clock, ChevronDown, ChevronUp, Mail, CheckCircle, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,42 +49,72 @@ export default function PersonasPage() {
   const [requestDescription, setRequestDescription] = useState("");
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<{ id: string; personaId: string; title: string } | null>(null);
+  const [loadingDialogOpen, setLoadingDialogOpen] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Loading...");
 
   useEffect(() => {
+    let isMounted = true;
+    
+    const fetchPersonas = async () => {
+      try {
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
+        );
+        
+        const queryPromise = supabase
+          .from("personas")
+          .select("*")
+          .eq("is_active", true)
+          .order("title");
+
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
+        if (!isMounted) return;
+
+        if (error) {
+          console.error("Error fetching personas:", error);
+          setPersonas([]);
+        } else {
+          setPersonas(data || []);
+        }
+      } catch (err) {
+        console.error("Error fetching personas:", err);
+        if (isMounted) {
+          setPersonas([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchPersonas();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
-
-  useEffect(() => {
-    if (personas.length > 0) {
-      fetchPastConversations();
-    }
-  }, [personas]);
-
-  const fetchPersonas = async () => {
-    const { data, error } = await supabase
-      .from("personas")
-      .select("*")
-      .eq("is_active", true)
-      .order("title");
-
-    if (error) {
-      console.error("Error fetching personas:", error);
-    } else {
-      setPersonas(data || []);
-    }
-    setLoading(false);
-  };
 
   const fetchPastConversations = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: conversations, error } = await supabase
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      );
+      
+      const queryPromise = supabase
         .from("conversations")
         .select("id, title, persona_id, last_message_at, created_at")
         .eq("user_id", user.id)
         .order("last_message_at", { ascending: false });
+
+      const { data: conversations, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error("Error fetching conversations:", error);
@@ -85,7 +125,7 @@ export default function PersonasPage() {
       const grouped: { [personaId: string]: Conversation[] } = {};
       const personaCounts: { [personaId: string]: number } = {};
       
-      conversations?.forEach((conv) => {
+      conversations?.forEach((conv: any) => {
         if (!grouped[conv.persona_id]) {
           grouped[conv.persona_id] = [];
           personaCounts[conv.persona_id] = 0;
@@ -93,11 +133,11 @@ export default function PersonasPage() {
         // Only add if we haven't reached the limit (5 most recent)
         if (personaCounts[conv.persona_id] < 5) {
           grouped[conv.persona_id].push({
-            id: conv.id,
-            title: conv.title,
-            last_message_at: conv.last_message_at,
-            created_at: conv.created_at,
-          });
+          id: conv.id,
+          title: conv.title,
+          last_message_at: conv.last_message_at,
+          created_at: conv.created_at,
+        });
           personaCounts[conv.persona_id]++;
         }
       });
@@ -107,6 +147,22 @@ export default function PersonasPage() {
       console.error("Error fetching past conversations:", error);
     }
   };
+
+  useEffect(() => {
+    if (personas.length > 0) {
+      let isMounted = true;
+      
+      const loadConversations = async () => {
+        await fetchPastConversations();
+      };
+
+      loadConversations();
+      
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [personas]);
 
   const togglePersonaExpanded = (personaId: string) => {
     setExpandedPersonas((prev) => {
@@ -120,6 +176,50 @@ export default function PersonasPage() {
     });
   };
 
+  const handleDeleteClick = (conversationId: string, personaId: string, conversationTitle: string) => {
+    setConversationToDelete({ id: conversationId, personaId, title: conversationTitle });
+    setDeleteDialogOpen(true);
+  };
+
+  const deleteConversation = async () => {
+    if (!conversationToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from("conversations")
+        .delete()
+        .eq("id", conversationToDelete.id);
+
+      if (error) {
+        console.error("Error deleting conversation:", error);
+        alert("Failed to delete conversation. Please try again.");
+        return;
+      }
+
+      // Update the past conversations state
+      setPastConversations((prev) => {
+        const updated = { ...prev };
+        if (updated[conversationToDelete.personaId]) {
+          updated[conversationToDelete.personaId] = updated[conversationToDelete.personaId].filter(
+            conv => conv.id !== conversationToDelete.id
+          );
+          // If no conversations left for this persona, remove the key
+          if (updated[conversationToDelete.personaId].length === 0) {
+            delete updated[conversationToDelete.personaId];
+          }
+        }
+        return updated;
+      });
+
+      // Close dialog and reset state
+      setDeleteDialogOpen(false);
+      setConversationToDelete(null);
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+      alert("An unexpected error occurred. Please try again.");
+    }
+  };
+
   const createNewConversation = async (personaId: string) => {
     // Get the current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -130,8 +230,10 @@ export default function PersonasPage() {
     }
 
     setCreatingConversation(personaId);
+    setLoadingMessage("Creating new conversation...");
+    setLoadingDialogOpen(true);
+    
     try {
-
       const { data, error } = await supabase
         .from("conversations")
         .insert({
@@ -144,6 +246,7 @@ export default function PersonasPage() {
 
       if (error) {
         console.error("Error creating conversation:", error);
+        setLoadingDialogOpen(false);
         // Provide more specific error messages
         if (error.code === '42501') {
           alert("Permission denied. Please make sure you're logged in and try again.");
@@ -157,9 +260,13 @@ export default function PersonasPage() {
 
       // Refresh past conversations after creating a new one
       await fetchPastConversations();
+      setLoadingMessage("Redirecting to conversation...");
+      // Small delay to show the redirect message
+      await new Promise(resolve => setTimeout(resolve, 300));
       return data;
     } catch (err) {
       console.error("Unexpected error:", err);
+      setLoadingDialogOpen(false);
       alert("An unexpected error occurred. Please try again.");
       return null;
     } finally {
@@ -319,9 +426,14 @@ export default function PersonasPage() {
                                   window.location.href = '/login';
                                   return;
                                 }
+                                setLoadingMessage("Opening conversation...");
+                                setLoadingDialogOpen(true);
+                                // Small delay to show loading state
+                                await new Promise(resolve => setTimeout(resolve, 200));
                                 window.location.href = `/chat/${persona.id}/${conv.id}`;
                               } catch (error) {
                                 console.error('Error checking authentication:', error);
+                                setLoadingDialogOpen(false);
                                 window.location.href = '/login';
                               }
                             };
@@ -337,15 +449,17 @@ export default function PersonasPage() {
                             return (
                               <div
                                 key={conv.id}
-                                role="button"
-                                tabIndex={0}
-                                onClick={handleConversationClick}
-                                onKeyDown={handleKeyDown}
-                                aria-label={`Open conversation: ${conv.title}`}
-                                className="p-2 rounded-md bg-[#2a2a2f] hover:bg-[#333338] focus:bg-[#333338] focus:outline-none focus:ring-2 focus:ring-purple-500 border border-gray-700 hover:border-gray-600 focus:border-purple-500 transition-colors cursor-pointer"
+                                className="p-2 rounded-md bg-[#2a2a2f] hover:bg-[#333338] border border-gray-700 hover:border-gray-600 transition-colors"
                               >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={handleConversationClick}
+                                    onKeyDown={handleKeyDown}
+                                    aria-label={`Open conversation: ${conv.title}`}
+                                    className="flex-1 min-w-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500 rounded"
+                                  >
                                     <p className="text-sm font-medium text-white truncate">
                                       {conv.title}
                                     </p>
@@ -353,7 +467,18 @@ export default function PersonasPage() {
                                       {formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true })}
                                     </p>
                                   </div>
-                                  <MessageCircle className="w-4 h-4 text-gray-500 ml-2 flex-shrink-0" />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteClick(conv.id, persona.id, conv.title);
+                                    }}
+                                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0"
+                                    aria-label={`Delete conversation: ${conv.title}`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
                                 </div>
                               </div>
                             );
@@ -507,7 +632,7 @@ export default function PersonasPage() {
                     setRequestName("");
                     setRequestDescription("");
                   }}
-                  className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                  className="border-gray-500 text-white hover:bg-gray-700 hover:text-white bg-[#2a2a2f]"
                 >
                   Cancel
                 </Button>
@@ -553,6 +678,50 @@ export default function PersonasPage() {
               >
                 Close
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent className="bg-[#23232a] border-gray-600 text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-white">Delete Conversation?</AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-400">
+                Are you sure you want to delete "{conversationToDelete?.title}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel 
+                onClick={() => {
+                  setDeleteDialogOpen(false);
+                  setConversationToDelete(null);
+                }}
+                className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white bg-[#2a2a2f]"
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={deleteConversation}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Loading Dialog */}
+        <Dialog open={loadingDialogOpen} onOpenChange={() => {}}>
+          <DialogContent className="bg-[#23232a] border-gray-600 text-white max-w-sm [&>button]:hidden">
+            <div className="flex flex-col items-center justify-center py-6">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-400 mb-4"></div>
+              <DialogTitle className="text-white text-center mb-2">
+                {loadingMessage}
+              </DialogTitle>
+              <DialogDescription className="text-gray-400 text-center text-sm">
+                Please wait...
+              </DialogDescription>
             </div>
           </DialogContent>
         </Dialog>

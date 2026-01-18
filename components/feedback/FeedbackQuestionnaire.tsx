@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerFooter,
+} from "@/components/ui/drawer";
 
 interface FeedbackQuestionnaireProps {
   isOpen: boolean;
@@ -89,75 +96,86 @@ export default function FeedbackQuestionnaire({ isOpen, onClose, onSubmit, onSki
     .filter(([key]) => key !== 'openEnded')
     .every(([, value]) => value !== null);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[#171717] border-gray-700">
-        <CardHeader className="text-center">
-          <CardTitle className="text-white text-xl">Feedback Survey</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {questions.map((question, index) => (
-              <div key={question.id} className="space-y-4">
-                <div>
-                  <h3 className="text-white font-medium mb-2">
-                    {index + 1}. {question.text}
-                  </h3>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-400">Not At All</span>
-                  <div className="flex space-x-4">
-                    {[1, 2, 3, 4, 5].map((rating) => (
-                      <button
-                        key={rating}
-                        onClick={() => handleRatingChange(question.id as keyof FeedbackResponses, rating)}
-                        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-sm font-medium transition-colors ${
-                          responses[question.id as keyof FeedbackResponses] === rating
-                            ? 'bg-blue-500 border-blue-500 text-white'
-                            : 'border-gray-400 text-gray-400 hover:border-blue-400 hover:text-blue-400'
-                        }`}
-                      >
-                        {rating}
-                      </button>
-                    ))}
+    <Drawer open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        // When drawer is closed (by dragging down or clicking outside), treat as skip
+        handleSkip();
+      }
+    }} shouldScaleBackground={false}>
+      <DrawerContent className="bg-[#171717] border-gray-700 text-white max-h-[90vh] [&>button]:hidden [&>div:first-child]:bg-gray-600">
+        <DrawerHeader className="text-center pb-4 pt-2">
+          <DrawerTitle className="text-white text-xl">Feedback Survey</DrawerTitle>
+          <DrawerDescription className="text-gray-400">
+            Help us improve by sharing your experience
+          </DrawerDescription>
+        </DrawerHeader>
+        
+        <div className="px-4 pb-4 overflow-y-auto max-h-[calc(90vh-200px)]">
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {questions.map((question, index) => (
+                <div key={question.id} className="space-y-4">
+                  <div>
+                    <h3 className="text-white font-medium mb-2 text-sm">
+                      {index + 1}. {question.text}
+                    </h3>
                   </div>
-                  <span className="text-sm text-gray-400">Extremely</span>
+                  
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-xs text-gray-400 whitespace-nowrap">Not At All</span>
+                    <div className="flex space-x-2 flex-1 justify-center">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <button
+                          key={rating}
+                          onClick={() => handleRatingChange(question.id as keyof FeedbackResponses, rating)}
+                          className={`w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-medium transition-colors ${
+                            responses[question.id as keyof FeedbackResponses] === rating
+                              ? 'bg-blue-500 border-blue-500 text-white'
+                              : 'border-gray-500 text-gray-400 hover:border-blue-400 hover:text-blue-400'
+                          }`}
+                        >
+                          {rating}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">Extremely</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <div className="space-y-4">
-            <h3 className="text-white font-medium">Details (Optional)</h3>
-            <Textarea
-              placeholder="What could we do to make the chatbot even more fair or polite?"
-              value={responses.openEnded}
-              onChange={(e) => setResponses(prev => ({ ...prev, openEnded: e.target.value }))}
-              className="bg-[#23232a] border-gray-600 text-white placeholder-gray-400 min-h-[100px]"
-            />
+            <div className="space-y-4 pt-4">
+              <h3 className="text-white font-medium text-sm">Details (Optional)</h3>
+              <Textarea
+                placeholder="What could we do to make the chatbot even more fair or polite?"
+                value={responses.openEnded}
+                onChange={(e) => setResponses(prev => ({ ...prev, openEnded: e.target.value }))}
+                className="bg-[#23232a] border-gray-600 text-white placeholder-gray-400 min-h-[100px]"
+              />
+            </div>
           </div>
+        </div>
 
-          <div className="flex justify-center space-x-4 pt-4">
+        <DrawerFooter className="border-t border-gray-700 pt-4">
+          <div className="flex justify-center gap-4 w-full">
             <Button
               variant="outline"
               onClick={handleSkip}
-              className="px-8 py-2 border-gray-500 text-black hover:bg-gray-700 hover:text-white"
+              className="flex-1 max-w-[200px] border-gray-500 text-white hover:bg-gray-700 hover:text-white bg-[#2a2a2f]"
             >
               Skip Survey
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={!isComplete}
-              className="px-8 py-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 max-w-[200px] bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Submit
             </Button>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   );
 } 

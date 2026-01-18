@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useUser } from "@/components/UserContext"
 import { useLanguage } from "@/components/LanguageContext"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { supabase } from "@/supabaseClient"
 import {
   DropdownMenu,
@@ -32,6 +32,7 @@ export default function BlackHeader() {
   const router = useRouter()
   const [navOpen, setNavOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isNavigatingToLogin, setIsNavigatingToLogin] = useState(false)
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -64,6 +65,21 @@ export default function BlackHeader() {
       setIsLoggingOut(false)
     }
   }
+
+  const handleLoginClick = () => {
+    setIsNavigatingToLogin(true)
+    // Small delay to show loading popup
+    setTimeout(() => {
+      router.push("/login")
+    }, 300)
+  }
+
+  // Close login dialog when pathname changes to /login
+  useEffect(() => {
+    if (pathname === "/login" && isNavigatingToLogin) {
+      setIsNavigatingToLogin(false)
+    }
+  }, [pathname, isNavigatingToLogin])
 
   // Hide header on chat pages
   if (pathname.startsWith('/chat')) {
@@ -269,13 +285,11 @@ export default function BlackHeader() {
           </DropdownMenu>
         ) : (
           <Button 
-            asChild 
+            onClick={handleLoginClick}
             className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold px-6 py-2 shadow-lg shadow-green-500/25 hover:shadow-green-500/40 transition-all duration-300 flex items-center gap-2"
           >
-            <Link href="/login" className="flex items-center gap-2">
-              <User className="w-4 h-4" />
-              <span>Login</span>
-            </Link>
+            <User className="w-4 h-4" />
+            <span>Login</span>
           </Button>
         )}
       </div>
@@ -287,6 +301,18 @@ export default function BlackHeader() {
             <Loader2 className="h-8 w-8 animate-spin text-green-400 mb-4" />
             <DialogDescription className="text-center text-white text-lg font-medium">
               Logging you out...
+            </DialogDescription>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Login Navigation Loading Dialog */}
+      <Dialog open={isNavigatingToLogin} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-[#1a1a1f] border-gray-700 [&>button]:hidden">
+          <DialogTitle className="sr-only">Loading login page</DialogTitle>
+          <div className="flex flex-col items-center justify-center py-6 px-4">
+            <Loader2 className="h-8 w-8 animate-spin text-green-400 mb-4" />
+            <DialogDescription className="text-center text-white text-lg font-medium">
+              Loading login page...
             </DialogDescription>
           </div>
         </DialogContent>

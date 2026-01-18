@@ -9,6 +9,8 @@ import { supabase } from "@/supabaseClient"
 import { User } from "@supabase/supabase-js"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { 
   Dialog,
@@ -22,7 +24,7 @@ import {
   MessageCircle, Users, TrendingUp, Calendar, 
   Camera, Edit3, Activity,
   Zap, Target, CheckCircle, Trophy, AlertCircle,
-  Key, Copy, Eye, EyeOff
+  Key, Copy
 } from "lucide-react"
 import Link from "next/link"
 
@@ -64,6 +66,7 @@ interface APIKey {
   last_used?: string
   is_active?: boolean
   persona_id?: string
+  custom_context?: string | null
 }
 
 interface TrainingResponse {
@@ -130,44 +133,79 @@ export default function DashboardPage() {
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [apiKeys, setApiKeys] = useState<APIKey[]>([])
   const [loadingApiKeys, setLoadingApiKeys] = useState(true)
-  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set())
+  const [editingContext, setEditingContext] = useState<string | null>(null)
+  const [editingContextValue, setEditingContextValue] = useState("")
   const { toast } = useToast ? useToast() : { toast: () => {} }
 
   useEffect(() => {
+    let isMounted = true;
+    
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-      setAvatarUrl(user?.user_metadata?.avatar_url || null)
-      setNewUsername(user?.user_metadata?.username || "")
-      setLoading(false)
-      
-      if (user) {
-        await fetchUserStats(user.id)
-        await fetchCompletedTrainingSessions(user.id)
-        await fetchApiKeys()
+      try {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth timeout')), 10000)
+        );
+        
+        const authPromise = supabase.auth.getUser();
+        const { data: { user } } = await Promise.race([authPromise, timeoutPromise]) as any;
+        
+        if (!isMounted) return;
+        
+        setUser(user)
+        setAvatarUrl(user?.user_metadata?.avatar_url || null)
+        setNewUsername(user?.user_metadata?.username || "")
+        setLoading(false)
+        
+        if (user && isMounted) {
+          await fetchUserStats(user.id)
+          if (isMounted) {
+            await fetchCompletedTrainingSessions(user.id)
+          }
+          if (isMounted) {
+            await fetchApiKeys()
+          }
+        }
+      } catch (error) {
+        console.error("Error getting user:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
-    getUser()
+    
+    getUser();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [])
 
   const fetchUserStats = async (userId: string) => {
     try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch stats timeout')), 15000)
+      );
+      
       // Fetch user's conversations first
-      const conversationsResult = await supabase
+      const conversationsPromise = supabase
         .from("conversations")
         .select("id, created_at, persona_id")
-        .eq("user_id", userId)
+        .eq("user_id", userId);
+      
+      const conversationsResult = await Promise.race([conversationsPromise, timeoutPromise]) as any;
 
-             const userConversations = conversationsResult.data || []
-       const conversationIds = userConversations.map(c => c.id)
+      const userConversations = conversationsResult.data || []
+      const conversationIds = userConversations.map((c: any) => c.id)
 
-       // Then fetch messages and feedback
-       const [messagesResult, feedbackResult] = await Promise.all([
-         conversationIds.length > 0 
-           ? supabase.from("messages").select("id, created_at, conversation_id").in("conversation_id", conversationIds)
-           : Promise.resolve({ data: [] }),
-         supabase.from("feedback_questionnaire").select("politeness, fairness, respectfulness, created_at")
-       ])
+      // Then fetch messages and feedback
+      const fetchPromise = Promise.all([
+        conversationIds.length > 0 
+          ? supabase.from("messages").select("id, created_at, conversation_id").in("conversation_id", conversationIds)
+          : Promise.resolve({ data: [] }),
+        supabase.from("feedback_questionnaire").select("politeness, fairness, respectfulness, created_at")
+      ]);
+      
+      const [messagesResult, feedbackResult] = await Promise.race([fetchPromise, timeoutPromise]) as any;
       const messages = messagesResult.data || []
       const feedback = feedbackResult.data || []
 
@@ -203,6 +241,16 @@ export default function DashboardPage() {
       setUserStats(stats)
     } catch (error) {
       console.error("Error fetching user stats:", error)
+      // Set default stats to prevent undefined state
+      setUserStats({
+        totalConversations: 0,
+        totalMessages: 0,
+        favoritePersona: "",
+        avgSessionDuration: 0,
+        lastActivity: new Date().toISOString(),
+        joinDate: new Date().toISOString(),
+        satisfactionScore: 0
+      })
     }
   }
 
@@ -253,7 +301,12 @@ export default function DashboardPage() {
   const fetchCompletedTrainingSessions = async (userId: string) => {
     try {
       setLoadingSessions(true)
-      const { data, error } = await supabase
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch sessions timeout')), 15000)
+      );
+      
+      const queryPromise = supabase
         .from("training_sessions")
         .select(`
           *,
@@ -265,12 +318,15 @@ export default function DashboardPage() {
         .eq("user_id", userId)
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
-        .limit(10)
+        .limit(10);
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) throw error
       setCompletedSessions((data || []) as CompletedTrainingSession[])
     } catch (error) {
       console.error("Error fetching completed training sessions:", error)
+      setCompletedSessions([])
     } finally {
       setLoadingSessions(false)
     }
@@ -393,21 +449,34 @@ export default function DashboardPage() {
   const fetchApiKeys = async () => {
     try {
       setLoadingApiKeys(true)
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch API keys timeout')), 10000)
+      );
+      
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
+      if (!session) {
+        setLoadingApiKeys(false)
+        return
+      }
 
-      const response = await fetch("/api/api-keys", {
+      const fetchPromise = fetch("/api/api-keys", {
         headers: {
           "Authorization": `Bearer ${session.access_token}`
         }
-      })
+      });
+
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
 
       if (response.ok) {
         const { apiKeys } = await response.json()
         setApiKeys(apiKeys || [])
+      } else {
+        setApiKeys([])
       }
     } catch (error) {
       console.error("Error fetching API keys:", error)
+      setApiKeys([])
     } finally {
       setLoadingApiKeys(false)
     }
@@ -420,15 +489,6 @@ export default function DashboardPage() {
     return `${start}${"•".repeat(Math.max(8, key.length - 8))}${end}`
   }
 
-  const toggleKeyVisibility = (keyId: string) => {
-    const newVisible = new Set(visibleKeys)
-    if (newVisible.has(keyId)) {
-      newVisible.delete(keyId)
-    } else {
-      newVisible.add(keyId)
-    }
-    setVisibleKeys(newVisible)
-  }
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -436,6 +496,50 @@ export default function DashboardPage() {
       toast({ title: "Copied to clipboard!" })
     } catch (error) {
       toast({ title: "Failed to copy", variant: "destructive" })
+    }
+  }
+
+  const startEditingContext = (key: APIKey) => {
+    setEditingContext(key.id)
+    setEditingContextValue(key.custom_context || "")
+  }
+
+  const cancelEditingContext = () => {
+    setEditingContext(null)
+    setEditingContextValue("")
+  }
+
+  const updateCustomContext = async (keyId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        router.push("/login")
+        return
+      }
+
+      const response = await fetch("/api/api-keys", {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          keyId,
+          custom_context: editingContextValue
+        })
+      })
+
+      if (response.ok) {
+        await fetchApiKeys()
+        setEditingContext(null)
+        setEditingContextValue("")
+        toast({ title: "Custom context updated successfully" })
+      } else {
+        const data = await response.json()
+        toast({ title: data.error || "Failed to update custom context", variant: "destructive" })
+      }
+    } catch (error: any) {
+      toast({ title: `Error: ${error.message}`, variant: "destructive" })
     }
   }
 
@@ -523,7 +627,7 @@ export default function DashboardPage() {
                           size="sm" 
                           variant="outline" 
                           onClick={() => setEditingUsername(false)}
-                            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+                          className="border-gray-500 text-white hover:bg-gray-700 hover:text-white bg-[#2a2a2f]"
                         >
                           Cancel
                         </Button>
@@ -639,7 +743,7 @@ export default function DashboardPage() {
           </Card>
 
             {/* Quick Actions & API Keys */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             {/* Quick Actions */}
             <Card className="bg-gradient-to-br from-[#1a1a1f] to-[#23232a] border-gray-700 backdrop-blur-sm">
               <CardHeader>
@@ -702,7 +806,7 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto overflow-x-hidden pr-2 api-keys-scrollable">
                     {apiKeys.map((apiKey) => (
                       <div
                         key={apiKey.id}
@@ -715,24 +819,8 @@ export default function DashboardPage() {
                             </p>
                             <div className="flex items-center gap-2">
                               <code className="text-xs text-gray-300 font-mono bg-[#1a1a1f] px-2 py-1 rounded">
-                                {visibleKeys.has(apiKey.id) && apiKey.key
-                                  ? apiKey.key
-                                  : maskApiKey(apiKey.key || apiKey.id)}
+                                {maskApiKey(apiKey.key || apiKey.id)}
                               </code>
-                              {apiKey.key && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => toggleKeyVisibility(apiKey.id)}
-                                  className="h-6 w-6 p-0 text-gray-400 hover:text-white"
-                                >
-                                  {visibleKeys.has(apiKey.id) ? (
-                                    <EyeOff className="w-3 h-3" />
-                                  ) : (
-                                    <Eye className="w-3 h-3" />
-                                  )}
-                                </Button>
-                              )}
                               {apiKey.key && (
                                 <Button
                                   size="sm"
@@ -759,6 +847,51 @@ export default function DashboardPage() {
                             </span>
                           )}
                         </div>
+                        {editingContext === apiKey.id ? (
+                          <div className="mt-3 space-y-2">
+                            <Label className="text-gray-300 text-sm">Custom Context</Label>
+                            <Textarea
+                              value={editingContextValue}
+                              onChange={(e) => setEditingContextValue(e.target.value)}
+                              placeholder="Add custom knowledge or information specific to your use case..."
+                              className="bg-[#1a1a1f] border-gray-700 text-white placeholder:text-gray-500 min-h-[80px] text-sm"
+                              rows={3}
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => updateCustomContext(apiKey.id)}
+                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelEditingContext}
+                                className="border-gray-500 text-white hover:bg-gray-700 hover:text-white bg-[#2a2a2f]"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => startEditingContext(apiKey)}
+                              className="text-purple-400 hover:text-purple-300 hover:bg-purple-900/20 text-xs h-7 border border-purple-500/30"
+                            >
+                              {apiKey.custom_context ? "Edit Custom Context" : "Add Custom Context"}
+                            </Button>
+                            {apiKey.custom_context && (
+                              <p className="text-xs text-gray-500 mt-1 italic">
+                                Custom context is set
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

@@ -152,7 +152,8 @@ export async function GET(request: NextRequest) {
             user_id: key.user_id,
             persona_id: key.persona_id,
             created_by: key.created_by,
-            user_email: userEmail
+            user_email: userEmail,
+            custom_context: key.custom_context || null,
           };
         })
       );
@@ -176,6 +177,7 @@ export async function GET(request: NextRequest) {
       user_id: key.user_id,
       persona_id: key.persona_id,
       created_by: key.created_by,
+      custom_context: key.custom_context || null,
     }));
 
     return NextResponse.json({
@@ -221,7 +223,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, persona_id } = body;
+    const { name, persona_id, custom_context } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -274,6 +276,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         persona_id: persona_id,
         created_by: user.id,
+        custom_context: custom_context?.trim() || null,
       })
       .select()
       .single();
@@ -291,6 +294,7 @@ export async function POST(request: NextRequest) {
       id: newKey.id,
       name: newKey.name,
       created_at: newKey.created_at,
+      custom_context: newKey.custom_context || null,
     });
   } catch (error) {
     console.error("API keys POST error:", error);
@@ -439,6 +443,119 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json(
       {
         error: "Failed to delete API key",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/api-keys
+ * Update an API key's custom context
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    // Get auth token from Authorization header
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Unauthorized - Missing or invalid authorization header" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    
+    // Verify the token and get user
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { keyId, custom_context } = body;
+
+    if (!keyId) {
+      return NextResponse.json(
+        { error: "API key ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if user is admin
+    const adminEmail = process.env.ADMIN_EMAIL || "kyrodahero123@gmail.com";
+    const isAdmin = user.email === adminEmail || user.email === "admin@fairnessai.com";
+    
+    // Create appropriate client
+    const userSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+
+    const clientToUse = isAdmin ? supabaseAdmin : userSupabase;
+
+    // First, check if the key exists and user has permission
+    const { data: existingKey, error: fetchError } = await clientToUse
+      .from("api_keys")
+      .select("user_id")
+      .eq("id", keyId)
+      .single();
+
+    if (fetchError || !existingKey) {
+      return NextResponse.json(
+        { error: "API key not found" },
+        { status: 404 }
+      );
+    }
+
+    // For regular users, verify ownership
+    if (!isAdmin && existingKey.user_id !== user.id) {
+      return NextResponse.json(
+        { error: "Unauthorized - You can only update your own API keys" },
+        { status: 403 }
+      );
+    }
+
+    // Update the custom context
+    const { data: updatedKey, error: updateError } = await clientToUse
+      .from("api_keys")
+      .update({
+        custom_context: custom_context?.trim() || null,
+      })
+      .eq("id", keyId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error updating API key:", updateError);
+      return NextResponse.json(
+        { error: "Failed to update API key", details: updateError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "API key updated successfully",
+      api_key: {
+        id: updatedKey.id,
+        name: updatedKey.name,
+        custom_context: updatedKey.custom_context,
+      },
+    });
+  } catch (error) {
+    console.error("API keys PATCH error:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to update API key",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }

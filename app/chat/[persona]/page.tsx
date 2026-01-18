@@ -19,23 +19,45 @@ export default function ChatPage({ params }: { params: Promise<{ persona: string
   const router = useRouter();
 
   useEffect(() => {
+    let isMounted = true;
+    
+    const fetchPersona = async () => {
+      try {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Fetch persona timeout')), 10000)
+        );
+        
+        const queryPromise = supabase
+          .from("personas")
+          .select("*")
+          .eq("id", persona)
+          .single();
+
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
+        if (!isMounted) return;
+
+        if (error) {
+          console.error("Error fetching persona:", error);
+          setPersonaData(null);
+          return;
+        }
+
+        setPersonaData(data);
+      } catch (error) {
+        console.error("Error fetching persona:", error);
+        if (isMounted) {
+          setPersonaData(null);
+        }
+      }
+    };
+    
     fetchPersona();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [persona]);
-
-  const fetchPersona = async () => {
-    const { data, error } = await supabase
-      .from("personas")
-      .select("*")
-      .eq("id", persona)
-      .single();
-
-    if (error) {
-      console.error("Error fetching persona:", error);
-      return;
-    }
-
-    setPersonaData(data);
-  };
 
   const startNewConversation = async () => {
     const { data: conversation, error } = await supabase

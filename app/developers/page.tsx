@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Code2, 
@@ -40,6 +41,7 @@ interface APIKey {
   is_active: boolean;
   permissions?: string[];
   persona_id?: string | null;
+  custom_context?: string | null;
 }
 
 export default function DeveloperPortal() {
@@ -49,27 +51,55 @@ export default function DeveloperPortal() {
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [selectedPersona, setSelectedPersona] = useState<string>("");
+  const [customContext, setCustomContext] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
+  const [editingContext, setEditingContext] = useState<string | null>(null);
+  const [editingContextValue, setEditingContextValue] = useState("");
 
   useEffect(() => {
     if (user) {
-      fetchPersonas();
-      fetchApiKeys();
+      let isMounted = true;
+      
+      const loadData = async () => {
+        await fetchPersonas();
+        if (isMounted) {
+          await fetchApiKeys();
+        }
+      };
+      
+      loadData();
+      
+      return () => {
+        isMounted = false;
+      };
     }
   }, [user]);
 
   const fetchPersonas = async () => {
-    const { data } = await supabase.from("personas").select("*").eq("is_active", true);
-    if (data) {
-      setPersonas(data.map((p: any) => ({
-        id: p.id,
-        name: p.title,
-        description: p.description || "",
-        system_prompt: p.system_prompt || ""
-      })));
+    try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch personas timeout')), 10000)
+      );
+      
+      const queryPromise = supabase.from("personas").select("*").eq("is_active", true);
+      const { data } = await Promise.race([queryPromise, timeoutPromise]) as any;
+      
+      if (data) {
+        setPersonas(data.map((p: any) => ({
+          id: p.id,
+          name: p.title,
+          description: p.description || "",
+          system_prompt: p.system_prompt || ""
+        })));
+      } else {
+        setPersonas([]);
+      }
+    } catch (error) {
+      console.error("Error fetching personas:", error);
+      setPersonas([]);
     }
   };
 
@@ -77,21 +107,33 @@ export default function DeveloperPortal() {
     if (!user) return;
     
     try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch API keys timeout')), 10000)
+      );
+      
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        setApiKeys([]);
+        return;
+      }
 
-      const response = await fetch("/api/api-keys", {
+      const fetchPromise = fetch("/api/api-keys", {
         headers: {
           "Authorization": `Bearer ${session.access_token}`
         }
       });
 
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+
       if (response.ok) {
         const { apiKeys } = await response.json();
         setApiKeys(apiKeys || []);
+      } else {
+        setApiKeys([]);
       }
     } catch (error) {
       console.error("Error fetching API keys:", error);
+      setApiKeys([]);
     }
   };
 
@@ -126,7 +168,8 @@ export default function DeveloperPortal() {
         },
         body: JSON.stringify({ 
           name: newKeyName.trim(),
-          persona_id: selectedPersona
+          persona_id: selectedPersona,
+          custom_context: customContext.trim() || null
         })
       });
 
@@ -136,6 +179,7 @@ export default function DeveloperPortal() {
         setGeneratedKey(data.api_key);
         setNewKeyName("");
         setSelectedPersona("");
+        setCustomContext("");
         await fetchApiKeys();
       } else {
         setSubmitMessage(data.error || "Failed to generate API key");
@@ -186,6 +230,52 @@ export default function DeveloperPortal() {
     navigator.clipboard.writeText(text);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+  const updateCustomContext = async (keyId: string) => {
+    if (!requireAuth()) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+
+      const response = await fetch("/api/api-keys", {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          keyId,
+          custom_context: editingContextValue
+        })
+      });
+
+      if (response.ok) {
+        await fetchApiKeys();
+        setEditingContext(null);
+        setEditingContextValue("");
+        setSubmitMessage("Custom context updated successfully");
+      } else {
+        const data = await response.json();
+        setSubmitMessage(data.error || "Failed to update custom context");
+      }
+    } catch (error: any) {
+      setSubmitMessage(`Error: ${error.message}`);
+    }
+  };
+
+  const startEditingContext = (key: APIKey) => {
+    setEditingContext(key.id);
+    setEditingContextValue(key.custom_context || "");
+  };
+
+  const cancelEditingContext = () => {
+    setEditingContext(null);
+    setEditingContextValue("");
   };
 
   if (loading) {
@@ -282,6 +372,21 @@ export default function DeveloperPortal() {
                     Each API key is tied to a specific persona. You'll need to generate separate keys for different personas.
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customContext" className="text-gray-300">Custom Context (Optional)</Label>
+                  <Textarea
+                    id="customContext"
+                    placeholder="e.g., Hospital Name: General Hospital, Services: Emergency, Cardiology, Pediatrics, Policies: 24/7 emergency care available..."
+                    value={customContext}
+                    onChange={(e) => setCustomContext(e.target.value)}
+                    className="bg-[#23232a] border-gray-700 text-white placeholder:text-gray-500 min-h-[100px]"
+                    rows={4}
+                  />
+                  <p className="text-sm text-gray-400">
+                    Add custom knowledge or information specific to your use case. This will be included in the AI's system prompt. 
+                    For example, if using a doctor persona, you can add your hospital name, services, policies, etc.
+                  </p>
+                </div>
                 <Button 
                   onClick={() => {
                     if (!requireAuth()) return;
@@ -370,11 +475,65 @@ export default function DeveloperPortal() {
                           <p className="text-sm text-gray-400">
                             Usage: {key.usage_count}/{key.rate_limit} requests/hour
                           </p>
-                          <div className="mt-2">
-                            <code className="bg-[#23232a] p-2 rounded text-sm text-gray-400 font-mono border border-gray-700">
-                              pk_fairness_***... (key hidden for security)
+                          <div className="mt-2 flex items-center gap-2">
+                            <code className="flex-1 bg-[#23232a] p-2 rounded text-sm text-gray-400 font-mono border border-gray-700">
+                              {key.key || "pk_fairness_***... (key hidden for security)"}
                             </code>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => copyToClipboard(key.key || "pk_fairness_***... (key hidden for security)")}
+                              className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+                              title="Copy API key"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
                           </div>
+                          {editingContext === key.id ? (
+                            <div className="mt-3 space-y-2">
+                              <Label className="text-gray-300 text-sm">Custom Context</Label>
+                              <Textarea
+                                value={editingContextValue}
+                                onChange={(e) => setEditingContextValue(e.target.value)}
+                                placeholder="Add custom knowledge or information specific to your use case..."
+                                className="bg-[#1a1a1f] border-gray-700 text-white placeholder:text-gray-500 min-h-[80px] text-sm"
+                                rows={3}
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => updateCustomContext(key.id)}
+                                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={cancelEditingContext}
+                                  className="text-gray-400 hover:text-white"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-3">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEditingContext(key)}
+                                className="text-purple-400 hover:text-purple-300 hover:bg-purple-900/20 text-xs h-7 border border-purple-500/30"
+                              >
+                                {key.custom_context ? "Edit Custom Context" : "Add Custom Context"}
+                              </Button>
+                              {key.custom_context && (
+                                <p className="text-xs text-gray-500 mt-1 italic">
+                                  Custom context is set
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="ml-4 flex items-center space-x-2">
                           <Badge 

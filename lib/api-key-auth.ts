@@ -16,6 +16,7 @@ export interface APIKeyInfo {
   rate_limit: number;
   last_used: string | null;
   permissions: string[];
+  custom_context?: string | null;
 }
 
 /**
@@ -77,6 +78,7 @@ export async function verifyAPIKey(apiKey: string): Promise<APIKeyInfo | null> {
       rate_limit: keyData.rate_limit || 100,
       last_used: now.toISOString(),
       permissions: keyData.permissions || ["persona:read", "chat:create"],
+      custom_context: keyData.custom_context || null,
     };
   } catch (error) {
     console.error("Error verifying API key:", error);

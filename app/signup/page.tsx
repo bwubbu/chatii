@@ -3,14 +3,14 @@
 import type React from "react"
 
 import { useState, useEffect, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
-import { Mail, Lock, User } from "lucide-react"
+import { Mail, Lock, User, Eye, EyeOff, Loader2 } from "lucide-react"
 import { useTypingAnimation } from "@/hooks/use-typing-animation"
 import { supabase } from "@/supabaseClient"
 import {
@@ -20,9 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 function SignUpForm() {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const isOAuthComplete = searchParams.get('complete_profile') === 'true'
   const oauthProvider = searchParams.get('oauth')
   
@@ -39,6 +47,9 @@ function SignUpForm() {
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [isOAuthUser, setIsOAuthUser] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isNavigatingToLogin, setIsNavigatingToLogin] = useState(false)
 
   // Check if user is authenticated via OAuth and needs to complete profile
   useEffect(() => {
@@ -237,6 +248,21 @@ function SignUpForm() {
     setLoading(false)
   }
 
+  const handleLoginClick = () => {
+    setIsNavigatingToLogin(true)
+    // Small delay to show loading popup
+    setTimeout(() => {
+      router.push("/login")
+    }, 300)
+  }
+
+  // Close login dialog when pathname changes to /login
+  useEffect(() => {
+    if (pathname === "/login" && isNavigatingToLogin) {
+      setIsNavigatingToLogin(false)
+    }
+  }, [pathname, isNavigatingToLogin])
+
   const handleGoogleSignUp = async () => {
     setLoading(true)
     setError(null)
@@ -371,13 +397,25 @@ function SignUpForm() {
                         <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                         <Input
                           id="password"
-                          type="password"
+                          type={showPassword ? "text" : "password"}
                           placeholder="Enter a password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                          className="pl-10 pr-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
                           required
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 focus:outline-none"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
                       </div>
                     </div>
 
@@ -389,13 +427,25 @@ function SignUpForm() {
                         <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                         <Input
                           id="confirmPassword"
-                          type="password"
+                          type={showConfirmPassword ? "text" : "password"}
                           placeholder="Confirm your password"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                          className="pl-10 pr-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
                           required
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 focus:outline-none"
+                          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
                       </div>
                     </div>
                   </>
@@ -576,15 +626,31 @@ function SignUpForm() {
 
               <p className="text-center text-sm text-gray-400 mt-6">
                 {"Already Have an Account? "}
-                <Link href="/login" className="text-white hover:underline font-medium">
+                <button
+                  type="button"
+                  onClick={handleLoginClick}
+                  className="text-white hover:underline font-medium"
+                >
                   Sign In
-                </Link>
+                </button>
                 {" here!"}
               </p>
             </CardContent>
           </Card>
         </div>
       </div>
+      {/* Login Navigation Loading Dialog */}
+      <Dialog open={isNavigatingToLogin} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-[#1a1a1f] border-gray-700 [&>button]:hidden">
+          <DialogTitle className="sr-only">Loading login page</DialogTitle>
+          <div className="flex flex-col items-center justify-center py-6 px-4">
+            <Loader2 className="h-8 w-8 animate-spin text-green-400 mb-4" />
+            <DialogDescription className="text-center text-white text-lg font-medium">
+              Loading login page...
+            </DialogDescription>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

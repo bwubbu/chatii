@@ -120,25 +120,41 @@ export default function TrainingSessionPage({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    
     params.then((p) => {
-      setScenarioId(p.scenarioId);
-      loadScenario(p.scenarioId);
+      if (isMounted) {
+        setScenarioId(p.scenarioId);
+        loadScenario(p.scenarioId);
+      }
     });
+    
     loadUserProfile();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [params]);
 
   const loadUserProfile = async () => {
     try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Load profile timeout')), 10000)
+      );
+      
+      const authPromise = supabase.auth.getUser();
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await Promise.race([authPromise, timeoutPromise]) as any;
 
       if (user) {
-        const { data: profile } = await supabase
+        const queryPromise = supabase
           .from("user_profiles")
           .select("nationality, age, race")
           .eq("user_id", user.id)
           .single();
+
+        const { data: profile } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
         if (profile) {
           setUserProfile({
@@ -150,6 +166,7 @@ export default function TrainingSessionPage({
       }
     } catch (error) {
       console.error("Error loading user profile:", error);
+      setUserProfile(null);
     }
   };
 
@@ -196,7 +213,11 @@ export default function TrainingSessionPage({
         } = await supabase.auth.getUser();
 
         if (user) {
-          const { data: existingSession } = await supabase
+          const sessionTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session query timeout')), 10000)
+          );
+          
+          const sessionQueryPromise = supabase
             .from("training_sessions")
             .select("*")
             .eq("user_id", user.id)
@@ -205,6 +226,8 @@ export default function TrainingSessionPage({
             .order("started_at", { ascending: false })
             .limit(1)
             .maybeSingle();
+          
+          const { data: existingSession } = await Promise.race([sessionQueryPromise, sessionTimeoutPromise]) as any;
 
           // If resuming, load existing session
           if (existingSession) {
@@ -222,6 +245,35 @@ export default function TrainingSessionPage({
               // Initial message is already saved in createSession for new sessions
             }
           } else {
+            // No existing session, start new one
+            const initialMessage: Message = {
+              id: "initial",
+              role: "assistant",
+              content: data.initialMessage,
+              timestamp: new Date(),
+            };
+            setMessages([initialMessage]);
+            await createSession(id, data.initialMessage);
+          }
+        } else {
+          // No user, just show initial message
+          const initialMessage: Message = {
+            id: "initial",
+            role: "assistant",
+            content: data.initialMessage,
+            timestamp: new Date(),
+          };
+          setMessages([initialMessage]);
+        }
+      } else {
+        console.error("Failed to load scenario");
+        setScenario(null);
+      }
+    } catch (error) {
+      console.error("Error loading scenario:", error);
+      setScenario(null);
+    }
+  };
             // New session - use global language preference (no dialog needed)
             const isResuming = await createSession(id, data.initialMessage);
             if (!isResuming) {
@@ -239,6 +291,7 @@ export default function TrainingSessionPage({
       }
     } catch (error) {
       console.error("Error loading scenario:", error);
+      setScenario(null);
     }
   };
 
@@ -282,7 +335,11 @@ export default function TrainingSessionPage({
       }
 
       // First, check if there's an existing in-progress session for this scenario
-      const { data: existingSession, error: checkError } = await supabase
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session check timeout')), 10000)
+      );
+      
+      const queryPromise = supabase
         .from("training_sessions")
         .select("*")
         .eq("user_id", user.id)
@@ -291,6 +348,8 @@ export default function TrainingSessionPage({
         .order("started_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      
+      const { data: existingSession, error: checkError } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (!checkError && existingSession) {
         // Use existing session
@@ -309,11 +368,17 @@ export default function TrainingSessionPage({
           }));
         } else {
           // Fallback: Load from training_responses (only available after scoring)
-          const { data: existingResponses } = await supabase
+          const responseTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Load responses timeout')), 10000)
+          );
+          
+          const responseQueryPromise = supabase
             .from("training_responses")
             .select("ai_message, user_response, message_number")
             .eq("session_id", existingSession.id)
             .order("message_number", { ascending: true });
+          
+          const { data: existingResponses } = await Promise.race([responseQueryPromise, responseTimeoutPromise]) as any;
 
           // Always start with initial message if provided
           if (initialMessage) {

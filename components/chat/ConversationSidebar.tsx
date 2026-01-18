@@ -37,10 +37,10 @@ interface ConversationWithPersona {
 }
 
 interface ConversationSidebarProps {
-  onEndChat?: () => void;
+  // Props can be added here in the future if needed
 }
 
-export function ConversationSidebar({ onEndChat }: ConversationSidebarProps) {
+export function ConversationSidebar(_props: ConversationSidebarProps = {}) {
   const [personaGroups, setPersonaGroups] = useState<PersonaGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const router = useRouter();
@@ -121,22 +121,6 @@ export function ConversationSidebar({ onEndChat }: ConversationSidebarProps) {
 
   return (
     <div className="w-80 h-full border-r border-gray-800 bg-[#171717] flex flex-col">
-      {/* Controls Section */}
-      {onEndChat && (
-        <div className="p-4 border-b border-gray-800">
-          <Button
-            variant="destructive"
-            size="sm"
-            className="w-full rounded-full text-white font-medium shadow hover:bg-red-600 transition-colors"
-            onClick={onEndChat}
-          >
-            End Chat
-          </Button>
-        </div>
-      )}
-
-
-
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-2">
           <h3 className="text-sm font-medium text-gray-400 mb-3 px-2">Past Chats</h3>

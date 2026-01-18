@@ -150,7 +150,7 @@ async function callVertexAI(data: VertexAIRequest, retries = MAX_RETRIES): Promi
         }],
         parameters: {
           temperature: data.temperature || 0.7,
-          maxOutputTokens: data.max_tokens || 200,
+          maxOutputTokens: data.max_tokens || 1024,
           topP: 0.95,
           topK: 40,
         }
@@ -259,7 +259,7 @@ async function callVertexAI(data: VertexAIRequest, retries = MAX_RETRIES): Promi
       return {
         response: responseText,
         model: VERTEX_AI_MODEL,
-        max_tokens: data.max_tokens || 200,
+        max_tokens: data.max_tokens || 1024,
         temperature: data.temperature || 0.7
       };
 
@@ -329,7 +329,7 @@ async function callGemini(
       temperature: temperature || 0.7,
       topK: 40,
       topP: 0.95,
-      maxOutputTokens: max_tokens || 200,
+      maxOutputTokens: max_tokens || 1024,
     }
   };
   
@@ -367,7 +367,7 @@ export async function POST(request: NextRequest) {
   
   // Parse request body outside try-catch so variables are available in catch block
   const requestBody = await request.json();
-  const { message, conversation_history, system_prompt, temperature = 0.7, max_tokens = 200 } = requestBody;
+  const { message, conversation_history, system_prompt, temperature = 0.7, max_tokens = 1024 } = requestBody;
 
   if (!message) {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -429,7 +429,7 @@ export async function POST(request: NextRequest) {
         });
 
         result = await callGemini(message, conversation_history, system_prompt, temperature, max_tokens);
-        result.max_tokens = max_tokens || 200;
+        result.max_tokens = max_tokens || 1024;
         result.temperature = temperature || 0.7;
       } catch (error) {
         primaryError = error instanceof Error ? error : new Error(String(error));
@@ -474,7 +474,7 @@ export async function POST(request: NextRequest) {
           server_type: 'gemini-fallback',
           processing_time_ms: Date.now() - startTime,
           timestamp: new Date().toISOString(),
-          max_tokens: max_tokens || 200,
+          max_tokens: max_tokens || 1024,
           temperature: temperature || 0.7
         });
       } else {

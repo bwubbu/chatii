@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import BlackHeader from '@/components/BlackHeader'
+import ConditionalFooter from '@/components/ConditionalFooter'
 import { UserProvider } from '@/components/UserContext'
 import { LanguageProvider } from '@/components/LanguageContext'
 
@@ -27,11 +28,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className="flex flex-col min-h-screen">
         <UserProvider>
           <LanguageProvider>
             <BlackHeader />
-            {children}
+            <main className="flex-1">
+              {children}
+            </main>
+            <ConditionalFooter />
           </LanguageProvider>
         </UserProvider>
       </body>

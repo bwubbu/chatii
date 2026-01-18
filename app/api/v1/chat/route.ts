@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { message, conversation_history = [], temperature = 0.7, max_tokens = 200 } = body;
+    const { message, conversation_history = [], temperature = 0.7, max_tokens = 1024 } = body;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -102,8 +102,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build system prompt from persona
-    const systemPrompt = persona.system_prompt || "";
+    // Build system prompt from persona and custom context
+    let systemPrompt = persona.system_prompt || "";
+    
+    // Append custom context if provided
+    if (keyInfo.custom_context && keyInfo.custom_context.trim()) {
+      systemPrompt += `\n\nADDITIONAL CONTEXT AND KNOWLEDGE:\n${keyInfo.custom_context.trim()}`;
+    }
 
     // Call the trained model endpoint (which handles Gemini/Vertex AI)
     // Use absolute URL for internal fetch to work in production

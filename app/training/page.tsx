@@ -66,9 +66,23 @@ export default function TrainingPage() {
   const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
-    fetchScenarios();
-    fetchRecentSessions();
-    fetchSessionStats();
+    let isMounted = true;
+    
+    const loadData = async () => {
+      await fetchScenarios();
+      if (isMounted) {
+        await fetchRecentSessions();
+      }
+      if (isMounted) {
+        await fetchSessionStats();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Refresh data when page becomes visible or window gains focus
@@ -84,15 +98,25 @@ export default function TrainingPage() {
 
   const fetchScenarios = async () => {
     try {
-      const response = await fetch("/api/training-mode/generate-scenario", {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch scenarios timeout')), 20000)
+      );
+      
+      const fetchPromise = fetch("/api/training-mode/generate-scenario", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
 
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+
       if (response.ok) {
         // Fetch all active scenarios from database with persona information
-        const { data, error } = await supabase
+        const queryTimeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Query timeout')), 15000)
+        );
+        
+        const queryPromise = supabase
           .from("training_scenarios")
           .select(`
             *,
@@ -105,9 +129,11 @@ export default function TrainingPage() {
           .eq("is_active", true)
           .order("difficulty_level", { ascending: true });
 
+        const { data, error } = await Promise.race([queryPromise, queryTimeoutPromise]) as any;
+
         if (!error && data) {
           setScenarios(
-            data.map((s) => ({
+            data.map((s: any) => ({
               id: s.id,
               title: s.title,
               description: s.description,
@@ -123,10 +149,15 @@ export default function TrainingPage() {
               } : undefined,
             }))
           );
+        } else {
+          setScenarios([]);
         }
+      } else {
+        setScenarios([]);
       }
     } catch (error) {
       console.error("Error fetching scenarios:", error);
+      setScenarios([]);
     } finally {
       setLoading(false);
     }
@@ -134,15 +165,23 @@ export default function TrainingPage() {
 
   const fetchRecentSessions = async () => {
     try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch sessions timeout')), 15000)
+      );
+      
+      const authPromise = supabase.auth.getUser();
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await Promise.race([authPromise, timeoutPromise]) as any;
 
-      if (!user) return;
+      if (!user) {
+        setRecentSessions([]);
+        return;
+      }
 
       // Fetch only in-progress sessions (recent sessions)
       // Explicitly filter out completed sessions
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from("training_sessions")
         .select(
           `
@@ -158,37 +197,54 @@ export default function TrainingPage() {
         .order("started_at", { ascending: false })
         .limit(5);
 
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
       if (!error && data) {
         // Additional filter in case database query doesn't work perfectly
         const inProgressOnly = data.filter((s: any) => s.status === "in_progress");
         setRecentSessions(inProgressOnly as any);
-      } else if (error) {
+      } else {
         console.error("Error fetching recent sessions:", error);
+        setRecentSessions([]);
       }
     } catch (error) {
       console.error("Error fetching sessions:", error);
+      setRecentSessions([]);
     }
   };
 
   const fetchSessionStats = async () => {
     try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch stats timeout')), 15000)
+      );
+      
+      const authPromise = supabase.auth.getUser();
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await Promise.race([authPromise, timeoutPromise]) as any;
 
-      if (!user) return;
+      if (!user) {
+        setSessionStats({
+          totalSessions: 0,
+          averageScore: 0,
+        });
+        return;
+      }
 
       // Fetch all completed sessions for stats
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from("training_sessions")
         .select("average_score")
         .eq("user_id", user.id)
         .eq("status", "completed")
         .not("average_score", "is", null);
 
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
       if (!error && data && data.length > 0) {
         const totalSessions = data.length;
-        const averageScore = data.reduce((sum, s) => sum + (s.average_score || 0), 0) / totalSessions;
+        const averageScore = data.reduce((sum: number, s: any) => sum + (s.average_score || 0), 0) / totalSessions;
         setSessionStats({
           totalSessions,
           averageScore,
@@ -201,6 +257,10 @@ export default function TrainingPage() {
       }
     } catch (error) {
       console.error("Error fetching session stats:", error);
+      setSessionStats({
+        totalSessions: 0,
+        averageScore: 0,
+      });
     }
   };
 

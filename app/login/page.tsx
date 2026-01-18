@@ -3,14 +3,14 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
-import { Mail, Lock, Loader2 } from "lucide-react"
+import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react"
 import { useTypingAnimation } from "@/hooks/use-typing-animation"
 import { supabase } from "@/supabaseClient"
 import {
@@ -22,12 +22,16 @@ import {
 
 export default function LoginPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [isNavigatingToSignup, setIsNavigatingToSignup] = useState(false)
+  const [isNavigatingToForgotPassword, setIsNavigatingToForgotPassword] = useState(false)
 
   // Handle OAuth redirect with tokens in hash fragment
   useEffect(() => {
@@ -129,6 +133,36 @@ export default function LoginPage() {
       setLoading(false)
     }
   }
+
+  const handleSignUpClick = () => {
+    setIsNavigatingToSignup(true)
+    // Small delay to show loading popup
+    setTimeout(() => {
+      router.push("/signup")
+    }, 300)
+  }
+
+  const handleForgotPasswordClick = () => {
+    setIsNavigatingToForgotPassword(true)
+    // Small delay to show loading popup
+    setTimeout(() => {
+      router.push("/forgot-password")
+    }, 300)
+  }
+
+  // Close signup dialog when pathname changes to /signup
+  useEffect(() => {
+    if (pathname === "/signup" && isNavigatingToSignup) {
+      setIsNavigatingToSignup(false)
+    }
+  }, [pathname, isNavigatingToSignup])
+
+  // Close forgot password dialog when pathname changes to /forgot-password
+  useEffect(() => {
+    if (pathname === "/forgot-password" && isNavigatingToForgotPassword) {
+      setIsNavigatingToForgotPassword(false)
+    }
+  }, [pathname, isNavigatingToForgotPassword])
 
   const handleGoogleSignIn = async () => {
     setLoading(true)
@@ -236,21 +270,37 @@ export default function LoginPage() {
                     <Label htmlFor="password" className="text-gray-300 text-sm">
                       Password
                     </Label>
-                    <Link href="/forgot-password" className="text-sm text-white hover:underline font-medium">
+                    <button
+                      type="button"
+                      onClick={handleForgotPasswordClick}
+                      className="text-sm text-white hover:underline font-medium"
+                    >
                       Forgot Password?
-                    </Link>
+                    </button>
                   </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
                       id="password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
+                      className="pl-10 pr-10 bg-[#2C2C2C] border-gray-600 text-white placeholder-gray-400 focus:border-gray-500"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 focus:outline-none"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -310,9 +360,13 @@ export default function LoginPage() {
 
               <p className="text-center text-sm text-gray-400 mt-6">
                 {"Don't Have an Account? "}
-                <Link href="/signup" className="text-white hover:underline font-medium">
+                <button
+                  type="button"
+                  onClick={handleSignUpClick}
+                  className="text-white hover:underline font-medium"
+                >
                   Sign Up
-                </Link>
+                </button>
                 {" for free!"}
               </p>
             </CardContent>
@@ -327,6 +381,30 @@ export default function LoginPage() {
             <Loader2 className="h-8 w-8 animate-spin text-green-400 mb-4" />
             <DialogDescription className="text-center text-white text-lg font-medium">
               Logging you in...
+            </DialogDescription>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Signup Navigation Loading Dialog */}
+      <Dialog open={isNavigatingToSignup} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-[#1a1a1f] border-gray-700 [&>button]:hidden">
+          <DialogTitle className="sr-only">Loading signup page</DialogTitle>
+          <div className="flex flex-col items-center justify-center py-6 px-4">
+            <Loader2 className="h-8 w-8 animate-spin text-green-400 mb-4" />
+            <DialogDescription className="text-center text-white text-lg font-medium">
+              Loading signup page...
+            </DialogDescription>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Forgot Password Navigation Loading Dialog */}
+      <Dialog open={isNavigatingToForgotPassword} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-[#1a1a1f] border-gray-700 [&>button]:hidden">
+          <DialogTitle className="sr-only">Loading forgot password page</DialogTitle>
+          <div className="flex flex-col items-center justify-center py-6 px-4">
+            <Loader2 className="h-8 w-8 animate-spin text-green-400 mb-4" />
+            <DialogDescription className="text-center text-white text-lg font-medium">
+              Loading forgot password page...
             </DialogDescription>
           </div>
         </DialogContent>

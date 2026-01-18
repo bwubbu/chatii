@@ -9,11 +9,18 @@ import {
   BarChart2, User, MessageCircle, Download, Activity, Users, Flag, ListChecks, 
   PlusCircle, Pencil, Trash2, Shield, Heart, Brain, TrendingUp, TrendingDown, AlertTriangle,
   CheckCircle, Clock, Target, Zap, Eye, ThumbsUp, Star, UserCheck, Key,
-  Mail, X, Check, Power, PowerOff, Ban
+  Mail, X, Check, Power, PowerOff, Ban, Upload
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { format } from "date-fns"
 import { Line, Bar, Doughnut, Radar } from "react-chartjs-2"
 import {
@@ -121,18 +128,20 @@ export default function AdminPage() {
   const [trainingScenarios, setTrainingScenarios] = useState<any[]>([])
   const [isTrainingScenarioFormOpen, setIsTrainingScenarioFormOpen] = useState(false)
   const [editingTrainingScenario, setEditingTrainingScenario] = useState<TrainingScenarioFormData | null>(null)
+  const [selectedFlaggedMessage, setSelectedFlaggedMessage] = useState<any>(null)
+  const [isFlaggedMessageDialogOpen, setIsFlaggedMessageDialogOpen] = useState(false)
   
   // Export training data state
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportSuccess, setExportSuccess] = useState(false)
-  const [exportFormat, setExportFormat] = useState<'embedding' | 'finetuning'>('embedding')
+  const [exportFormat] = useState<'embedding'>('embedding')
   
   // Export flagged messages state
   const [isExportingFlagged, setIsExportingFlagged] = useState(false)
   const [exportFlaggedError, setExportFlaggedError] = useState<string | null>(null)
   const [exportFlaggedSuccess, setExportFlaggedSuccess] = useState(false)
-  const [exportFlaggedFormat, setExportFlaggedFormat] = useState<'embedding' | 'finetuning'>('embedding')
+  const [exportFlaggedFormat] = useState<'embedding'>('embedding')
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all')
   const [scoreFilter, setScoreFilter] = useState<'high' | 'low' | 'custom'>('high')
   const [customMinScore, setCustomMinScore] = useState<string>('')
@@ -140,6 +149,15 @@ export default function AdminPage() {
   const [selectedPersonaForExport, setSelectedPersonaForExport] = useState<string>('all')
   const [startDate, setStartDate] = useState<Date | undefined>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
   const [endDate, setEndDate] = useState<Date | undefined>(new Date())
+  
+  // Upload training data state
+  const [isUploadingPositive, setIsUploadingPositive] = useState(false)
+  const [isUploadingNegative, setIsUploadingNegative] = useState(false)
+  const [uploadPositiveError, setUploadPositiveError] = useState<string | null>(null)
+  const [uploadNegativeError, setUploadNegativeError] = useState<string | null>(null)
+  const [uploadPositiveSuccess, setUploadPositiveSuccess] = useState(false)
+  const [uploadNegativeSuccess, setUploadNegativeSuccess] = useState(false)
+  const [uploadStats, setUploadStats] = useState<any>(null)
   
   // Training data insights
   const [trainingDataInsights, setTrainingDataInsights] = useState<{
@@ -167,30 +185,62 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (user && user.email === ADMIN_EMAIL) {
-      fetchAnalyticsData()
-      if (activeTab === "personas") {
-        fetchPersonas()
-      }
-      if (activeTab === "moderation") {
-        fetchFlaggedMessages()
-        fetchPersonas()
-        fetchTrainingDataInsights()
-      }
-      if (activeTab === "api-keys") {
-        fetchAPIKeys()
-      }
-      if (activeTab === "persona-requests") {
-        fetchPersonaRequests()
-      }
-      if (activeTab === "training-scenarios") {
-        fetchTrainingScenarios()
-      }
+      let isMounted = true;
+      
+      const loadData = async () => {
+        try {
+          await fetchAnalyticsData();
+          if (!isMounted) return;
+          
+          if (activeTab === "personas") {
+            await fetchPersonas();
+          }
+          if (activeTab === "moderation") {
+            await Promise.all([
+              fetchFlaggedMessages(),
+              fetchPersonas(),
+              fetchTrainingDataInsights()
+            ]);
+          }
+          if (activeTab === "api-keys") {
+            await fetchAPIKeys();
+          }
+          if (activeTab === "persona-requests") {
+            await fetchPersonaRequests();
+          }
+          if (activeTab === "training-scenarios") {
+            await fetchTrainingScenarios();
+          }
+        } catch (error) {
+          console.error("Error loading admin data:", error);
+        }
+      };
+      
+      loadData();
+      
+      return () => {
+        isMounted = false;
+      };
     }
   }, [user, activeTab])
 
   const fetchAnalyticsData = async () => {
     try {
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Analytics fetch timeout')), 30000)
+      );
+      
       // Fetch all data in parallel
+      const fetchPromise = Promise.all([
+        supabase.from("conversations").select("id, persona_id, created_at, updated_at, user_id"),
+        supabase.from("messages").select("id, conversation_id, created_at"),
+        supabase.from("feedback_questionnaire").select("id, open_ended, created_at, persona_id, politeness, fairness, respectfulness, trustworthiness, competence, likeability"),
+        supabase.from("flagged_messages").select("id, created_at"),
+        supabase.from("demographics").select("*"),
+        supabase.from("personas").select("id, title")
+      ]);
+      
       const [
         conversationsResult,
         messagesResult,
@@ -198,14 +248,7 @@ export default function AdminPage() {
         flaggedResult,
         demographicsResult,
         personasResult
-      ] = await Promise.all([
-        supabase.from("conversations").select("id, persona_id, created_at, updated_at, user_id"),
-        supabase.from("messages").select("id, conversation_id, created_at"),
-        supabase.from("feedback_questionnaire").select("id, open_ended, created_at, persona_id, politeness, fairness, respectfulness, trustworthiness, competence, likeability"),
-        supabase.from("flagged_messages").select("id, created_at"),
-        supabase.from("demographics").select("*"),
-        supabase.from("personas").select("id, title")
-      ])
+      ] = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
       const conversations = conversationsResult.data || []
       const messages = messagesResult.data || []
@@ -330,21 +373,57 @@ export default function AdminPage() {
       setAnalyticsData(analyticsData)
     } catch (error) {
       console.error("Error fetching analytics data:", error)
+      // Set empty data to prevent infinite loading
+      setAnalyticsData({
+        totalUsers: 0,
+        totalConversations: 0,
+        totalMessages: 0,
+        activeUsers24h: 0,
+        avgSessionDuration: 0,
+        fairnessScore: 0,
+        userSatisfaction: 0,
+        flaggedMessages: 0,
+        conversationsByPersona: {},
+        personaNameMap: {},
+        usersByDemographics: { age: {}, gender: {}, role: {} },
+        surveyResults: {
+          politeness: 0,
+          fairness: 0,
+          respectfulness: 0,
+          trustworthiness: 0,
+          competence: 0,
+          likeability: 0
+        },
+        timeSeriesData: {
+          labels: [],
+          conversations: [],
+          users: [],
+          satisfaction: []
+        },
+        feedbackMessages: [],
+        userGrowthPercent: 0
+      })
     }
   }
 
   const fetchPersonas = async () => {
-    // Debug: Check current user
-    const { data: { user } } = await supabase.auth.getUser()
-    console.log('Current user:', user?.email)
-    
-    const { data, error } = await supabase.from("personas").select("*")
-    if (error) {
-      console.error('Fetch personas error:', error)
-      console.error('Error details:', JSON.stringify(error, null, 2))
-    } else {
-      console.log('Fetched personas:', data)
-      setPersonas(data || [])
+    try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch personas timeout')), 15000)
+      );
+      
+      const queryPromise = supabase.from("personas").select("*");
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+      
+      if (error) {
+        console.error('Fetch personas error:', error)
+        setPersonas([])
+      } else {
+        setPersonas(data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching personas:', error)
+      setPersonas([])
     }
   }
 
@@ -628,6 +707,94 @@ export default function AdminPage() {
     }
   }
 
+  const handleUploadPositive = async (file: File) => {
+    setIsUploadingPositive(true)
+    setUploadPositiveError(null)
+    setUploadPositiveSuccess(false)
+    setUploadStats(null)
+
+    try {
+      // Get session token for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('You must be logged in to upload data')
+      }
+
+      // Create form data
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Call upload API with auth token
+      const response = await fetch('/api/upload-training-data', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const result = await response.json()
+      setUploadStats(result.results)
+      setUploadPositiveSuccess(true)
+      setTimeout(() => setUploadPositiveSuccess(false), 10000)
+    } catch (error: any) {
+      console.error("Upload positive error:", error)
+      setUploadPositiveError(error.message || "Failed to upload data")
+      setTimeout(() => setUploadPositiveError(null), 10000)
+    } finally {
+      setIsUploadingPositive(false)
+    }
+  }
+
+  const handleUploadNegative = async (file: File) => {
+    setIsUploadingNegative(true)
+    setUploadNegativeError(null)
+    setUploadNegativeSuccess(false)
+    setUploadStats(null)
+
+    try {
+      // Get session token for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('You must be logged in to upload data')
+      }
+
+      // Create form data
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Call upload API with auth token
+      const response = await fetch('/api/upload-training-data', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const result = await response.json()
+      setUploadStats(result.results)
+      setUploadNegativeSuccess(true)
+      setTimeout(() => setUploadNegativeSuccess(false), 10000)
+    } catch (error: any) {
+      console.error("Upload negative error:", error)
+      setUploadNegativeError(error.message || "Failed to upload data")
+      setTimeout(() => setUploadNegativeError(null), 10000)
+    } finally {
+      setIsUploadingNegative(false)
+    }
+  }
+
   const fetchFlaggedMessages = async () => {
     console.log('Fetching flagged messages...')
     const { data, error } = await supabase
@@ -641,6 +808,10 @@ export default function AdminPage() {
       return
     }
     
+    // Get auth token for API calls
+    const { data: { session } } = await supabase.auth.getSession()
+    const authToken = session?.access_token || null
+    
     // Enrich data with persona info, user context, and reporter info
     const enrichedData = await Promise.all((data || []).map(async (flag) => {
       let persona = null
@@ -650,41 +821,90 @@ export default function AdminPage() {
       
       // Get message and conversation info
       if (flag.message_id) {
-        const { data: message } = await supabase
-          .from("messages")
-          .select("conversation_id, created_at")
-          .eq("id", flag.message_id)
-          .single()
-        
-        if (message?.conversation_id) {
-          // Get conversation and persona
-          const { data: conversation } = await supabase
-            .from("conversations")
-            .select("persona_id")
-            .eq("id", message.conversation_id)
+        try {
+          const { data: message, error: messageError } = await supabase
+            .from("messages")
+            .select("conversation_id, created_at")
+            .eq("id", flag.message_id)
             .single()
           
-          if (conversation?.persona_id) {
-            const { data: personaData } = await supabase
-              .from("personas")
-              .select("id, title, avatar_url")
-              .eq("id", conversation.persona_id)
+          if (!messageError && message?.conversation_id) {
+            // Get conversation and persona
+            const { data: conversation, error: convError } = await supabase
+              .from("conversations")
+              .select("persona_id")
+              .eq("id", message.conversation_id)
               .single()
             
-            persona = personaData
-            
-            // Get user message context (the message before the flagged one)
-            const { data: userMessage } = await supabase
+            if (!convError && conversation?.persona_id) {
+              const { data: personaData, error: personaError } = await supabase
+                .from("personas")
+                .select("id, title, avatar_url")
+                .eq("id", conversation.persona_id)
+                .single()
+              
+              if (!personaError && personaData) {
+                persona = personaData
+              } else {
+                console.warn(`Persona not found for ID: ${conversation.persona_id}`, personaError)
+              }
+              
+              // Get user message context (the message before the flagged one)
+              const { data: userMessage } = await supabase
+                .from("messages")
+                .select("content")
+                .eq("conversation_id", message.conversation_id)
+                .eq("sender", "user")
+                .lt("created_at", message.created_at)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle()
+              
+              userContext = userMessage?.content || null
+            } else {
+              console.warn(`Conversation not found for ID: ${message.conversation_id}`, convError)
+            }
+          } else {
+            console.warn(`Message not found for ID: ${flag.message_id}`, messageError)
+          }
+        } catch (err) {
+          console.error(`Error fetching message/conversation for flag ${flag.id}:`, err)
+        }
+      } else {
+        // If no message_id, try to find message by content match (fallback)
+        // This is a best-effort approach for older flags that might not have message_id
+        if (flag.content) {
+          try {
+            const { data: matchingMessages } = await supabase
               .from("messages")
-              .select("content")
-              .eq("conversation_id", message.conversation_id)
-              .eq("sender", "user")
-              .lt("created_at", message.created_at)
+              .select("conversation_id, created_at")
+              .eq("content", flag.content)
+              .eq("sender", "assistant")
               .order("created_at", { ascending: false })
               .limit(1)
-              .single()
             
-            userContext = userMessage?.content || null
+            if (matchingMessages && matchingMessages.length > 0) {
+              const message = matchingMessages[0]
+              const { data: conversation } = await supabase
+                .from("conversations")
+                .select("persona_id")
+                .eq("id", message.conversation_id)
+                .single()
+              
+              if (conversation?.persona_id) {
+                const { data: personaData } = await supabase
+                  .from("personas")
+                  .select("id, title, avatar_url")
+                  .eq("id", conversation.persona_id)
+                  .single()
+                
+                if (personaData) {
+                  persona = personaData
+                }
+              }
+            }
+          } catch (err) {
+            console.error(`Error in fallback persona lookup for flag ${flag.id}:`, err)
           }
         }
       }
@@ -699,19 +919,32 @@ export default function AdminPage() {
         
         previousReportsCount = count || 0
         
-        // Get email via API endpoint
-        try {
-          const response = await fetch(`/api/user-email?userId=${flag.user_id}`)
-          if (response.ok) {
-            const data = await response.json()
-            reporterEmail = data.email || 'Unknown'
-          } else {
+        // Get email via API endpoint with auth token
+        if (authToken) {
+          try {
+            const response = await fetch(`/api/user-email?userId=${flag.user_id}`, {
+              headers: {
+                'Authorization': `Bearer ${authToken}`
+              }
+            })
+            if (response.ok) {
+              const data = await response.json()
+              reporterEmail = data.email || 'Unknown'
+            } else {
+              console.warn(`Failed to fetch email for user ${flag.user_id}:`, response.status)
+              reporterEmail = 'Unknown'
+            }
+          } catch (err) {
+            console.error('Error fetching user email:', err)
             reporterEmail = 'Unknown'
           }
-        } catch (err) {
-          console.error('Error fetching user email:', err)
+        } else {
+          console.warn('No auth token available for fetching user email')
           reporterEmail = 'Unknown'
         }
+      } else {
+        console.warn(`Flag ${flag.id} has no user_id`)
+        reporterEmail = 'Unknown'
       }
       
       return {
@@ -1329,14 +1562,14 @@ export default function AdminPage() {
             {/* Analytics & Performance Section */}
             <div>
               <h2 className="text-2xl font-bold text-white text-center mb-6">Analytics & Performance</h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="mb-6">
               <Card className="bg-[#1a1a1f] border-gray-700">
                 <CardHeader>
                   <CardTitle className="text-white font-semibold">Conversation Trends</CardTitle>
                   <CardDescription className="text-gray-400 text-sm">Daily conversations over the last week</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64">
+                  <div className="h-96">
                     <Line 
                       data={{
                         labels: analyticsData.timeSeriesData.labels,
@@ -1350,39 +1583,6 @@ export default function AdminPage() {
                       }}
                       options={chartOptions}
                     />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-[#1a1a1f] border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white font-semibold">User Demographics</CardTitle>
-                  <CardDescription className="text-gray-400 text-sm">Age distribution of users</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    {Object.keys(analyticsData.usersByDemographics.age).length > 0 ? (
-                      <Doughnut 
-                        data={{
-                          labels: Object.keys(analyticsData.usersByDemographics.age),
-                          datasets: [{
-                            data: Object.values(analyticsData.usersByDemographics.age),
-                            backgroundColor: [
-                              "#3b82f6", "#22d3ee", "#a78bfa", "#fbbf24", "#f87171"
-                            ],
-                            borderWidth: 0,
-                          }]
-                        }}
-                        options={doughnutOptions}
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-gray-400">
-                        <div className="text-center">
-                          <User className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                          <p className="text-gray-400">No age data available</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1814,361 +2014,566 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-6">
-                {flaggedMessages.map((flag) => {
-                  const persona = flag.message?.conversation?.persona
-                  const severity = flag.severity?.toUpperCase() || 'HIGH'
-                  const status = flag.status || 'pending'
-                  const date = new Date(flag.created_at)
-                  const formattedDate = date.toLocaleDateString()
-                  const formattedTime = date.toLocaleTimeString()
-                  
-                  return (
-                    <Card key={flag.id} className="bg-[#1a1a1f] border-gray-700">
-                      <CardContent className="p-6">
-                        {/* Header Section */}
-                        <div className="flex items-start justify-between mb-6">
-                          <div className="flex items-start gap-4">
-                            {/* Persona Avatar */}
-                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center overflow-hidden flex-shrink-0">
-                              {flag.persona?.avatar_url ? (
-                                <img src={flag.persona.avatar_url} alt={flag.persona.title} className="w-16 h-16 object-cover rounded-full" />
-                              ) : (
-                                <span className="text-2xl font-bold text-white">{flag.persona?.title?.[0] || "?"}</span>
-                              )}
-                            </div>
-                            
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-0">
+                  <div className="max-h-[600px] overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-gray-700">
+                          <TableHead className="text-gray-400">Persona</TableHead>
+                          <TableHead className="text-gray-400">Severity</TableHead>
+                          <TableHead className="text-gray-400">Status</TableHead>
+                          <TableHead className="text-gray-400">Reason</TableHead>
+                          <TableHead className="text-gray-400">Date</TableHead>
+                          <TableHead className="text-gray-400">Reporter</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {flaggedMessages.map((flag) => {
+                          const severity = flag.severity?.toUpperCase() || 'HIGH'
+                          const status = flag.status || 'pending'
+                          const date = new Date(flag.created_at)
+                          const formattedDate = date.toLocaleDateString()
+                          const formattedTime = date.toLocaleTimeString()
+                          
+                          return (
+                            <TableRow 
+                              key={flag.id} 
+                              className="border-gray-700 cursor-pointer hover:bg-gray-800/50"
+                              onClick={() => {
+                                setSelectedFlaggedMessage(flag)
+                                setIsFlaggedMessageDialogOpen(true)
+                              }}
+                            >
+                              <TableCell className="text-white font-medium">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                    {flag.persona?.avatar_url ? (
+                                      <img src={flag.persona.avatar_url} alt={flag.persona.title} className="w-8 h-8 object-cover rounded-full" />
+                                    ) : (
+                                      <span className="text-sm font-bold text-white">{flag.persona?.title?.[0] || "?"}</span>
+                                    )}
+                                  </div>
+                                  <span>{flag.persona?.title || 'Unknown Persona'}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-gray-300">
                                 <Badge variant="destructive" className="bg-red-600">
                                   {severity}
                                 </Badge>
-                                <Badge variant={status === 'pending' ? 'secondary' : 'default'} className={status === 'pending' ? 'bg-yellow-600 text-white' : 'bg-green-600 text-white'}>
+                              </TableCell>
+                              <TableCell className="text-gray-300">
+                                <Badge 
+                                  variant={status === 'pending' ? 'secondary' : 'default'} 
+                                  className={status === 'pending' ? 'bg-yellow-600 text-white' : 'bg-green-600 text-white'}
+                                >
                                   {status.charAt(0).toUpperCase() + status.slice(1)}
                                 </Badge>
-                              </div>
-                              <div className="text-gray-400 text-sm">
-                                {formattedDate} {formattedTime}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Persona Name and Reason */}
-                        <div className="mb-4">
-                          <h3 className="text-lg font-semibold text-white mb-1">
-                            {flag.persona?.title || 'Unknown Persona'}
-                          </h3>
-                          <p className="text-red-400 text-sm font-medium">{flag.reason}</p>
-                        </div>
-
-                        {/* Flagged Response */}
-                        <div className="mb-4">
-                          <h4 className="text-sm font-semibold text-gray-400 mb-2">Flagged Response</h4>
-                          <div className="bg-[#171717] border border-gray-700 rounded-lg p-4">
-                            <p className="text-gray-200">{flag.content}</p>
-                          </div>
-                        </div>
-
-                        {/* Context */}
-                        {flag.userContext && (
-                          <div className="mb-4">
-                            <h4 className="text-sm font-semibold text-gray-400 mb-2">Context</h4>
-                            <div className="bg-[#171717] border border-gray-700 rounded-lg p-4">
-                              <p className="text-gray-200">User: {flag.userContext}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Reporter Information */}
-                        <div className="mb-6">
-                          <h4 className="text-sm font-semibold text-gray-400 mb-2">Reporter Information</h4>
-                          <div className="space-y-1 text-sm">
-                            <p className="text-gray-200">
-                              <span className="text-gray-400">Email:</span> {flag.reporterEmail || 'Unknown'}
-                            </p>
-                            <p className="text-gray-200">
-                              <span className="text-gray-400">Previous Reports:</span> {flag.previousReportsCount || 0}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        {status === 'pending' && (
-                          <div className="flex gap-3 pt-4 border-t border-gray-700">
-                            <Button
-                              onClick={() => handleApproveFlaggedMessage(flag.id)}
-                              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Approve
-                            </Button>
-                            <Button
-                              onClick={() => handleRemoveFlaggedMessage(flag.id)}
-                              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                            >
-                              <X className="w-4 h-4 mr-2" />
-                              Remove
-                            </Button>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
+                              </TableCell>
+                              <TableCell className="text-gray-300">
+                                <span className="text-red-400">{flag.reason}</span>
+                              </TableCell>
+                              <TableCell className="text-gray-300">
+                                <div className="text-sm">
+                                  <div>{formattedDate}</div>
+                                  <div className="text-gray-500">{formattedTime}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-gray-300">
+                                <div className="text-sm">
+                                  <div>{flag.reporterEmail || 'Unknown'}</div>
+                                  {flag.previousReportsCount > 0 && (
+                                    <div className="text-gray-500 text-xs">
+                                      {flag.previousReportsCount} previous report{flag.previousReportsCount !== 1 ? 's' : ''}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
             )}
+
+            {/* Flagged Message Detail Dialog */}
+            <Dialog open={isFlaggedMessageDialogOpen} onOpenChange={setIsFlaggedMessageDialogOpen}>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-[#1a1a1f] border-gray-700 text-white">
+                {selectedFlaggedMessage && (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle className="text-white">Content Moderation Report</DialogTitle>
+                      <DialogDescription className="text-gray-400">
+                        Review flagged message details and take action
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-6">
+                      {/* Header Section */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          {/* Persona Avatar */}
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {selectedFlaggedMessage.persona?.avatar_url ? (
+                              <img src={selectedFlaggedMessage.persona.avatar_url} alt={selectedFlaggedMessage.persona.title} className="w-16 h-16 object-cover rounded-full" />
+                            ) : (
+                              <span className="text-2xl font-bold text-white">{selectedFlaggedMessage.persona?.title?.[0] || "?"}</span>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="destructive" className="bg-red-600">
+                                {selectedFlaggedMessage.severity?.toUpperCase() || 'HIGH'}
+                              </Badge>
+                              <Badge 
+                                variant={selectedFlaggedMessage.status === 'pending' ? 'secondary' : 'default'} 
+                                className={selectedFlaggedMessage.status === 'pending' ? 'bg-yellow-600 text-white' : 'bg-green-600 text-white'}
+                              >
+                                {(selectedFlaggedMessage.status || 'pending').charAt(0).toUpperCase() + (selectedFlaggedMessage.status || 'pending').slice(1)}
+                              </Badge>
+                            </div>
+                            <div className="text-gray-400 text-sm">
+                              {new Date(selectedFlaggedMessage.created_at).toLocaleDateString()} {new Date(selectedFlaggedMessage.created_at).toLocaleTimeString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Persona Name and Reason */}
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-1">
+                          {selectedFlaggedMessage.persona?.title || 'Unknown Persona'}
+                        </h3>
+                        <p className="text-red-400 text-sm font-medium">{selectedFlaggedMessage.reason}</p>
+                      </div>
+
+                      {/* Flagged Response */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-400 mb-2">Flagged Response</h4>
+                        <div className="bg-[#171717] border border-gray-700 rounded-lg p-4">
+                          <p className="text-gray-200 whitespace-pre-wrap">{selectedFlaggedMessage.content}</p>
+                        </div>
+                      </div>
+
+                      {/* Context */}
+                      {selectedFlaggedMessage.userContext && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-400 mb-2">Context</h4>
+                          <div className="bg-[#171717] border border-gray-700 rounded-lg p-4">
+                            <p className="text-gray-200">User: {selectedFlaggedMessage.userContext}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reporter Information */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-400 mb-2">Reporter Information</h4>
+                        <div className="space-y-1 text-sm">
+                          <p className="text-gray-200">
+                            <span className="text-gray-400">Email:</span> {selectedFlaggedMessage.reporterEmail || 'Unknown'}
+                          </p>
+                          <p className="text-gray-200">
+                            <span className="text-gray-400">Previous Reports:</span> {selectedFlaggedMessage.previousReportsCount || 0}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      {selectedFlaggedMessage.status === 'pending' && (
+                        <div className="flex gap-3 pt-4 border-t border-gray-700">
+                          <Button
+                            onClick={() => {
+                              handleApproveFlaggedMessage(selectedFlaggedMessage.id)
+                              setIsFlaggedMessageDialogOpen(false)
+                            }}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Approve
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              handleRemoveFlaggedMessage(selectedFlaggedMessage.id)
+                              setIsFlaggedMessageDialogOpen(false)
+                            }}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <X className="w-4 h-4 mr-2" />
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </DialogContent>
+            </Dialog>
             </div>
 
-            {/* Export Flagged Messages Section */}
+            {/* Training Data Management - Unified Section */}
             <Card className="bg-[#1a1a1f] border-gray-700">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-400" />
-                  Export Flagged Messages (Negative Examples)
+                  <Brain className="w-5 h-5 text-cyan-400" />
+                  Training Data Management
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Export resolved flagged messages as negative training examples for RAG/embeddings or fine-tuning. These show what the chatbot should NOT do.
+                  Export and upload training data for RAG/embeddings or fine-tuning. Export positive examples (high-quality feedback) and negative examples (flagged messages).
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Severity Filter */}
-                <div className="space-y-2">
-                  <Label className="text-gray-300">Severity Filter (Optional)</Label>
-                  <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
-                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Severities</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Export Format */}
-                <div className="space-y-2">
-                  <Label className="text-gray-300">Export Format</Label>
-                  <Select value={exportFlaggedFormat} onValueChange={(value: 'embedding' | 'finetuning') => setExportFlaggedFormat(value)}>
-                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="embedding">Embedding Format (RAG)</SelectItem>
-                      <SelectItem value="finetuning">Fine-tuning Format (Legacy)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">
-                    {exportFlaggedFormat === 'embedding' 
-                      ? 'Plain text format suitable for embedding generation and vector database storage.'
-                      : 'Mistral format with special tokens for model fine-tuning (legacy).'}
-                  </p>
-                </div>
-
-                {/* Note about date range and persona */}
-                <div className="bg-yellow-900/30 border border-yellow-600/60 rounded-lg p-3">
-                  <p className="text-sm text-yellow-50">
-                    <strong className="text-yellow-100 font-semibold">Note:</strong> Uses the same date range and persona filters as the positive examples export below.
-                    Only exports flagged messages with status "resolved" (approved for training).
-                  </p>
-                </div>
-
-                {/* Export Button and Status */}
-                <div className="flex items-center gap-4 pt-2">
-                  <Button
-                    onClick={handleExportFlaggedMessages}
-                    disabled={isExportingFlagged}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    {isExportingFlagged ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Exporting...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        Export Negative Examples
-                      </>
-                    )}
-                  </Button>
-                  {exportFlaggedSuccess && (
-                    <span className="text-green-400 text-sm">Export successful! File downloaded.</span>
-                  )}
-                  {exportFlaggedError && (
-                    <span className="text-red-400 text-sm">{exportFlaggedError}</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Export Training Data Section */}
-            <Card className="bg-[#1a1a1f] border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Download className="w-5 h-5" />
-                  Export Positive Training Data
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Export feedback data with conversations for RAG/embeddings or fine-tuning. Filter by quality scores, date range, and persona.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Score Filter */}
-                <div className="space-y-2">
-                  <Label className="text-gray-300">Score Range</Label>
-                  <Select value={scoreFilter} onValueChange={(value: 'high' | 'low' | 'custom') => setScoreFilter(value)}>
-                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="high">High Quality (≥ 4.0)</SelectItem>
-                      <SelectItem value="low">Low Quality (&lt; 2.5)</SelectItem>
-                      <SelectItem value="custom">Custom Range</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {scoreFilter === 'custom' && (
+              <CardContent className="space-y-6">
+                {/* Shared Filters */}
+                <div className="space-y-4 pb-4 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white">Shared Filters</h3>
+                  
+                  {/* Date Range */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-300">Date Range</Label>
                     <div className="flex gap-2">
-                      <div className="flex-1">
-                        <Label className="text-gray-400 text-sm">Min Score</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="5"
-                          step="0.1"
-                          value={customMinScore}
-                          onChange={(e) => setCustomMinScore(e.target.value)}
-                          className="bg-[#23232a] border-gray-600 text-white"
-                          placeholder="0.0"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <Label className="text-gray-400 text-sm">Max Score</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="5"
-                          step="0.1"
-                          value={customMaxScore}
-                          onChange={(e) => setCustomMaxScore(e.target.value)}
-                          className="bg-[#23232a] border-gray-600 text-white"
-                          placeholder="5.0"
-                        />
-                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="flex-1 bg-[#23232a] border-gray-600 !text-gray-50 hover:!text-white justify-start text-left font-normal"
+                          >
+                            {startDate ? format(startDate, "PPP") : "Start date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-[#1a1a1f] border-gray-700">
+                          <Calendar
+                            mode="single"
+                            selected={startDate}
+                            onSelect={setStartDate}
+                            initialFocus
+                            className="bg-[#1a1a1f]"
+                            classNames={{
+                              day: "text-gray-300 hover:text-white hover:bg-gray-700",
+                              day_selected: "bg-cyan-500 text-white hover:bg-cyan-600 hover:text-white",
+                              day_today: "bg-gray-800 text-white font-semibold",
+                              day_outside: "text-gray-500 opacity-50",
+                              caption_label: "text-gray-200",
+                              nav_button: "text-gray-300 hover:text-white",
+                              head_cell: "text-gray-400",
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="flex-1 bg-[#23232a] border-gray-600 !text-gray-50 hover:!text-white justify-start text-left font-normal"
+                          >
+                            {endDate ? format(endDate, "PPP") : "End date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-[#1a1a1f] border-gray-700">
+                          <Calendar
+                            mode="single"
+                            selected={endDate}
+                            onSelect={setEndDate}
+                            initialFocus
+                            className="bg-[#1a1a1f]"
+                            classNames={{
+                              day: "text-gray-300 hover:text-white hover:bg-gray-700",
+                              day_selected: "bg-cyan-500 text-white hover:bg-cyan-600 hover:text-white",
+                              day_today: "bg-gray-800 text-white font-semibold",
+                              day_outside: "text-gray-500 opacity-50",
+                              caption_label: "text-gray-200",
+                              nav_button: "text-gray-300 hover:text-white",
+                              head_cell: "text-gray-400",
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
-                  )}
-                </div>
+                  </div>
 
-                {/* Date Range */}
-                <div className="space-y-2">
-                  <Label className="text-gray-300">Date Range</Label>
-                  <div className="flex gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="flex-1 bg-[#23232a] border-gray-600 text-white justify-start text-left font-normal"
-                        >
-                          {startDate ? format(startDate, "PPP") : "Start date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-[#1a1a1f] border-gray-700">
-                        <Calendar
-                          mode="single"
-                          selected={startDate}
-                          onSelect={setStartDate}
-                          initialFocus
-                          className="bg-[#1a1a1f]"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="flex-1 bg-[#23232a] border-gray-600 text-white justify-start text-left font-normal"
-                        >
-                          {endDate ? format(endDate, "PPP") : "End date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-[#1a1a1f] border-gray-700">
-                        <Calendar
-                          mode="single"
-                          selected={endDate}
-                          onSelect={setEndDate}
-                          initialFocus
-                          className="bg-[#1a1a1f]"
-                        />
-                      </PopoverContent>
-                    </Popover>
+                  {/* Persona Filter */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-300">Persona (Optional)</Label>
+                    <Select value={selectedPersonaForExport} onValueChange={setSelectedPersonaForExport}>
+                      <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Personas</SelectItem>
+                        {personas.map((persona) => (
+                          <SelectItem key={persona.id} value={persona.id}>
+                            {persona.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
-                {/* Persona Filter */}
-                <div className="space-y-2">
-                  <Label className="text-gray-300">Persona (Optional)</Label>
-                  <Select value={selectedPersonaForExport} onValueChange={setSelectedPersonaForExport}>
-                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Personas</SelectItem>
-                      {personas.map((persona) => (
-                        <SelectItem key={persona.id} value={persona.id}>
-                          {persona.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Export Format */}
-                <div className="space-y-2">
-                  <Label className="text-gray-300">Export Format</Label>
-                  <Select value={exportFormat} onValueChange={(value: 'embedding' | 'finetuning') => setExportFormat(value)}>
-                    <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="embedding">Embedding Format (RAG)</SelectItem>
-                      <SelectItem value="finetuning">Fine-tuning Format (Legacy)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">
-                    {exportFormat === 'embedding' 
-                      ? 'Plain text format suitable for embedding generation and vector database storage.'
-                      : 'Mistral format with special tokens for model fine-tuning (legacy).'}
-                  </p>
-                </div>
-
-                {/* Export Button and Status */}
-                <div className="flex items-center gap-4 pt-2">
-                  <Button
-                    onClick={handleExportTrainingData}
-                    disabled={isExporting}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    {isExporting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Exporting...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        Export Training Data
-                      </>
+                {/* Positive Examples Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                    <h3 className="text-lg font-semibold text-white">Positive Examples</h3>
+                  </div>
+                  <p className="text-sm text-gray-400">High-quality feedback conversations that show what the chatbot SHOULD do.</p>
+                  
+                  {/* Score Filter */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-300">Score Range</Label>
+                    <Select value={scoreFilter} onValueChange={(value: 'high' | 'low' | 'custom') => setScoreFilter(value)}>
+                      <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="high">High Quality (≥ 4.0)</SelectItem>
+                        <SelectItem value="low">Low Quality (&lt; 2.5)</SelectItem>
+                        <SelectItem value="custom">Custom Range</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {scoreFilter === 'custom' && (
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Label className="text-gray-400 text-sm">Min Score</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="5"
+                            step="0.1"
+                            value={customMinScore}
+                            onChange={(e) => setCustomMinScore(e.target.value)}
+                            className="bg-[#23232a] border-gray-600 text-white"
+                            placeholder="0.0"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Label className="text-gray-400 text-sm">Max Score</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="5"
+                            step="0.1"
+                            value={customMaxScore}
+                            onChange={(e) => setCustomMaxScore(e.target.value)}
+                            className="bg-[#23232a] border-gray-600 text-white"
+                            placeholder="5.0"
+                          />
+                        </div>
+                      </div>
                     )}
-                  </Button>
-                  {exportSuccess && (
-                    <span className="text-green-400 text-sm">Export successful! File downloaded.</span>
-                  )}
-                  {exportError && (
-                    <span className="text-red-400 text-sm">{exportError}</span>
-                  )}
+                  </div>
+
+                  {/* Export Format */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-300">Export Format</Label>
+                    <div className="bg-[#23232a] border border-gray-600 rounded-md px-3 py-2 text-white">
+                      Embedding Format (RAG)
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Plain text format suitable for embedding generation and vector database storage.
+                    </p>
+                  </div>
+
+                  {/* Export and Upload Buttons */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleExportTrainingData}
+                        disabled={isExporting}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {isExporting ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4 mr-2" />
+                            Export Positive Examples
+                          </>
+                        )}
+                      </Button>
+                      <label className="cursor-pointer">
+                        <Button
+                          type="button"
+                          disabled={isUploadingPositive}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          asChild
+                        >
+                          <span>
+                            {isUploadingPositive ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4 mr-2" />
+                                Upload Positive Examples
+                              </>
+                            )}
+                          </span>
+                        </Button>
+                        <input
+                          type="file"
+                          accept=".jsonl"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              handleUploadPositive(file)
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {exportSuccess && (
+                      <span className="text-green-400 text-sm">Export successful! File downloaded.</span>
+                    )}
+                    {exportError && (
+                      <span className="text-red-400 text-sm">{exportError}</span>
+                    )}
+                    {uploadPositiveSuccess && (
+                      <div className="space-y-1">
+                        <span className="text-green-400 text-sm">Upload successful!</span>
+                        {uploadStats && (
+                          <div className="text-xs text-gray-400 ml-4">
+                            Processed: {uploadStats.positive.processed} positive examples
+                            {uploadStats.positive.skipped > 0 && (
+                              <span className="text-gray-500"> ({uploadStats.positive.skipped} duplicates skipped)</span>
+                            )}
+                            {uploadStats.positive.errors.length > 0 && (
+                              <span className="text-yellow-400"> ({uploadStats.positive.errors.length} errors)</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {uploadPositiveError && (
+                      <span className="text-red-400 text-sm">{uploadPositiveError}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Negative Examples Section */}
+                <div className="space-y-4 pt-4 border-t border-gray-700">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                    <h3 className="text-lg font-semibold text-white">Negative Examples</h3>
+                  </div>
+                  <p className="text-sm text-gray-400">Flagged messages that show what the chatbot should NOT do. Only exports resolved/approved flags.</p>
+                  
+                  {/* Severity Filter */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-300">Severity Filter (Optional)</Label>
+                    <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+                      <SelectTrigger className="bg-[#23232a] border-gray-600 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Severities</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Export Format */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-300">Export Format</Label>
+                    <div className="bg-[#23232a] border border-gray-600 rounded-md px-3 py-2 text-white">
+                      Embedding Format (RAG)
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Plain text format suitable for embedding generation and vector database storage.
+                    </p>
+                  </div>
+
+                  {/* Export and Upload Buttons */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleExportFlaggedMessages}
+                        disabled={isExportingFlagged}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        {isExportingFlagged ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4 mr-2" />
+                            Export Negative Examples
+                          </>
+                        )}
+                      </Button>
+                      <label className="cursor-pointer">
+                        <Button
+                          type="button"
+                          disabled={isUploadingNegative}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          asChild
+                        >
+                          <span>
+                            {isUploadingNegative ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4 mr-2" />
+                                Upload Negative Examples
+                              </>
+                            )}
+                          </span>
+                        </Button>
+                        <input
+                          type="file"
+                          accept=".jsonl"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              handleUploadNegative(file)
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {exportFlaggedSuccess && (
+                      <span className="text-green-400 text-sm">Export successful! File downloaded.</span>
+                    )}
+                    {exportFlaggedError && (
+                      <span className="text-red-400 text-sm">{exportFlaggedError}</span>
+                    )}
+                    {uploadNegativeSuccess && (
+                      <div className="space-y-1">
+                        <span className="text-green-400 text-sm">Upload successful!</span>
+                        {uploadStats && (
+                          <div className="text-xs text-gray-400 ml-4">
+                            Processed: {uploadStats.negative.processed} negative examples
+                            {uploadStats.negative.skipped > 0 && (
+                              <span className="text-gray-500"> ({uploadStats.negative.skipped} duplicates skipped)</span>
+                            )}
+                            {uploadStats.negative.errors.length > 0 && (
+                              <span className="text-yellow-400"> ({uploadStats.negative.errors.length} errors)</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {uploadNegativeError && (
+                      <span className="text-red-400 text-sm">{uploadNegativeError}</span>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

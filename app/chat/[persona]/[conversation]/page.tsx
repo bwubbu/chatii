@@ -65,19 +65,41 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
     setIsSubmittingFeedback(false);
     pendingNavigationRef.current = null;
     
-    fetchPersona();
-    fetchMessages();
-    fetchDemographics();
-    checkExistingFeedback();
+    let isMounted = true;
+    
+    const loadData = async () => {
+      await fetchPersona();
+      if (isMounted) {
+        await fetchMessages();
+      }
+      if (isMounted) {
+        await fetchDemographics();
+      }
+      if (isMounted) {
+        await checkExistingFeedback();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [persona, conversation]);
 
   const checkExistingFeedback = async () => {
     try {
-      const { data, error } = await supabase
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Check feedback timeout')), 10000)
+      );
+      
+      const queryPromise = supabase
         .from("feedback_questionnaire")
         .select("id")
         .eq("conversation_id", conversation)
         .maybeSingle();
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" which is fine
         console.error("Error checking existing feedback:", error);
@@ -181,24 +203,42 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   };
 
   const fetchMessages = async () => {
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", conversation)
-      .order("created_at", { ascending: true });
+    try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch messages timeout')), 10000)
+      );
+      
+      const queryPromise = supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversation)
+        .order("created_at", { ascending: true });
 
-    if (error) {
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
+      if (error) {
+        console.error("Error fetching messages:", error);
+        setMessages([]);
+        return;
+      }
+
+      setMessages(data || []);
+    } catch (error) {
       console.error("Error fetching messages:", error);
-      return;
+      setMessages([]);
     }
-
-    setMessages(data);
   };
 
   const fetchDemographics = async () => {
     try {
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch demographics timeout')), 10000)
+      );
+      
       // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const authPromise = supabase.auth.getUser();
+      const { data: { user }, error: userError } = await Promise.race([authPromise, timeoutPromise]) as any;
+      
       if (userError || !user) {
         console.error("Error getting user:", userError);
         setDemographics({});
@@ -211,11 +251,13 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
       const firstName = username ? username.split(' ')[0] : undefined;
 
       // Fetch user demographics from user_profiles (from registration)
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from("user_profiles")
         .select("nationality, age, race, gender")
         .eq("user_id", user.id)
         .single();
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error("Error fetching user demographics:", error);
@@ -464,7 +506,7 @@ Remember: You ARE this persona. Act accordingly.
               content: msg.content,
             })),
             system_prompt: systemPrompt,
-            max_tokens: 200,
+            max_tokens: 1024,
             temperature: 0.7
           }),
         });
@@ -542,8 +584,62 @@ Remember: You ARE this persona. Act accordingly.
         sender: "assistant",
       });
 
-      // Update conversation title if it's the first message
-      if (messages.length === 0) {
+      // Generate conversation title after a few messages (like ChatGPT)
+      // Generate title after 2-3 exchanges (4-6 messages total)
+      const totalMessagesAfterThis = messages.length + 2; // +2 for the user message and assistant response we just added
+      const shouldGenerateTitle = totalMessagesAfterThis >= 4 && totalMessagesAfterThis <= 6;
+      
+      // Check if title is still "New Conversation" to avoid regenerating
+      const { data: currentConversation } = await supabase
+        .from("conversations")
+        .select("title")
+        .eq("id", conversation)
+        .single();
+      
+      const needsTitle = !currentConversation?.title || 
+                        currentConversation.title === "New Conversation";
+      
+      if (shouldGenerateTitle && needsTitle) {
+        // Generate title asynchronously (don't block the UI)
+        (async () => {
+          try {
+            // Generate title based on conversation so far (including the messages we just added)
+            const conversationForTitle = [...messages, userMessage, assistantMessage].map(msg => ({
+              role: msg.sender === "user" ? "user" : "assistant",
+              content: msg.content,
+            }));
+            
+            const titleResponse = await fetch('/api/generate-conversation-title', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: conversationForTitle }),
+            });
+            
+            if (titleResponse.ok) {
+              const titleData = await titleResponse.json();
+              const generatedTitle = titleData.title || "New Conversation";
+              
+              // Double-check the title hasn't been updated by another request
+              const { data: checkConversation } = await supabase
+                .from("conversations")
+                .select("title")
+                .eq("id", conversation)
+                .single();
+              
+              if (!checkConversation?.title || checkConversation.title === "New Conversation") {
+                await supabase
+                  .from("conversations")
+                  .update({ title: generatedTitle })
+                  .eq("id", conversation);
+              }
+            }
+          } catch (titleError) {
+            console.error("Error generating conversation title:", titleError);
+            // Silently fail - title generation is not critical
+          }
+        })();
+      } else if (messages.length === 0) {
+        // Fallback: use first message as temporary title until AI-generated title is ready
         const title = content.length > 30 ? content.slice(0, 30) + "..." : content;
         await supabase
           .from("conversations")
@@ -561,20 +657,53 @@ Remember: You ARE this persona. Act accordingly.
     setFlagLoading(true);
     // For simplicity, flag the last assistant message
     const lastAssistantMsg = [...messages].reverse().find(m => m.sender === "assistant");
-    if (!lastAssistantMsg) return;
-    const { error } = await supabase.from("flagged_messages").insert([
-      {
-        message_id: lastAssistantMsg.id,
-        content: lastAssistantMsg.content,
-        reason: flagReason,
-        status: "pending",
-        created_at: new Date().toISOString(),
-      },
-    ]);
-    setFlagLoading(false);
-    setFlagModalOpen(false);
-    setFlagReason("");
-    // Optionally show a toast
+    if (!lastAssistantMsg) {
+      setFlagLoading(false);
+      return;
+    }
+
+    try {
+      // Get the current user's session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert("You must be logged in to flag messages");
+        setFlagLoading(false);
+        setFlagModalOpen(false);
+        setFlagReason("");
+        return;
+      }
+
+      // Use the API route which properly includes user_id
+      const response = await fetch("/api/flag-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          message_id: lastAssistantMsg.id,
+          content: lastAssistantMsg.content,
+          reason: flagReason,
+          severity: "medium",
+          conversation_id: conversation,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to flag message");
+      }
+
+      // Success - close modal and reset
+      setFlagModalOpen(false);
+      setFlagReason("");
+      // Optionally show a success message
+    } catch (error: any) {
+      console.error("Error flagging message:", error);
+      alert(error.message || "Failed to flag message. Please try again.");
+    } finally {
+      setFlagLoading(false);
+    }
   };
 
   const handleEndChat = () => {
@@ -736,16 +865,14 @@ Remember: You ARE this persona. Act accordingly.
       
       {/* Sidebar (collapsible on all screens) - positioned below navbar */}
       <div className={`fixed left-0 z-30 transition-all duration-300 bg-[#171717] border-r border-gray-800 ${sidebarOpen ? 'w-80' : 'w-0'} overflow-hidden`} style={{ top: '80px', height: 'calc(100vh - 80px)' }}>
-        <ConversationSidebar
-        onEndChat={handleEndChat}
-      />
+        <ConversationSidebar />
       </div>
       
       {/* Main content wrapper for chat */}
       <div className={`flex-1 flex flex-col h-screen transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'}`}>
         {/* Persona Header */}
-        <div className="bg-[#171717] border-b border-gray-800 px-6 py-5 flex items-center justify-center">
-          <div className="flex items-center space-x-4">
+        <div className="bg-[#171717] border-b border-gray-800 px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center space-x-4 flex-1 justify-center">
             <Avatar className="h-12 w-12">
               <AvatarImage src={personaData?.avatar_url || undefined} alt={personaData?.title} />
               <AvatarFallback>{personaData?.title?.[0]}</AvatarFallback>
@@ -755,6 +882,14 @@ Remember: You ARE this persona. Act accordingly.
               <p className="text-gray-400 text-sm">{personaData?.description}</p>
             </div>
           </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleEndChat}
+            className="rounded-md text-white font-medium shadow hover:bg-red-600 transition-colors"
+          >
+            End Chat
+          </Button>
         </div>
 
         {/* Chat messages area - scrollable with proper height */}
