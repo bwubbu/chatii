@@ -163,11 +163,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // For regular users, return masked key version
+    // For regular users, return full keys (they own these keys, so they should have access)
+    // The frontend will mask them for display, but we return full keys so they can copy them
     const sanitizedKeys = (apiKeys || []).map((key: any) => ({
       id: key.id,
       name: key.name,
-      key: key.key ? `${key.key.substring(0, 8)}...${key.key.substring(key.key.length - 4)}` : null,
+      key: key.key || null, // Return full key - frontend will mask for display
       created_at: key.created_at,
       last_used: key.last_used,
       usage_count: key.usage_count,

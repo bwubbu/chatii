@@ -34,6 +34,7 @@ interface Persona {
 interface APIKey {
   id: string;
   name: string;
+  key?: string | null; // Full API key (may be null for old keys or when not available)
   created_at: string;
   last_used?: string;
   usage_count: number;
@@ -224,6 +225,13 @@ export default function DeveloperPortal() {
     } catch (error: any) {
       setSubmitMessage(`Error: ${error.message}`);
     }
+  };
+
+  // Helper function to mask API key for display
+  const maskApiKey = (key: string | null | undefined): string => {
+    if (!key) return "pk_fairness_***... (key hidden for security)";
+    if (key.length <= 12) return key; // Don't mask very short keys
+    return `${key.substring(0, 8)}...${key.substring(key.length - 4)}`;
   };
 
   const copyToClipboard = (text: string) => {
@@ -477,14 +485,21 @@ export default function DeveloperPortal() {
                           </p>
                           <div className="mt-2 flex items-center gap-2">
                             <code className="flex-1 bg-[#23232a] p-2 rounded text-sm text-gray-400 font-mono border border-gray-700">
-                              {key.key || "pk_fairness_***... (key hidden for security)"}
+                              {maskApiKey(key.key)}
                             </code>
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => copyToClipboard(key.key || "pk_fairness_***... (key hidden for security)")}
+                              onClick={() => {
+                                if (key.key) {
+                                  copyToClipboard(key.key);
+                                } else {
+                                  setSubmitMessage("API key not available. Please generate a new key.");
+                                }
+                              }}
                               className="text-gray-400 hover:text-white hover:bg-gray-700/50"
-                              title="Copy API key"
+                              title="Copy full API key"
+                              disabled={!key.key}
                             >
                               <Copy className="w-4 h-4" />
                             </Button>
@@ -608,35 +623,64 @@ export default function DeveloperPortal() {
                       
                       <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700 mb-3">
                         <p className="text-xs text-gray-400 mb-2 font-semibold">Endpoint:</p>
-                        <code className="text-green-400 text-sm">POST /api/v1/chat</code>
+                        <code className="text-green-400 text-sm">POST https://ramahai.vercel.app/api/v1/chat</code>
                       </div>
 
                       <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700 mb-3">
-                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Request (cURL):</p>
+                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Request (cURL) - Linux/Mac/Git Bash:</p>
+                        <p className="text-xs text-gray-500 mb-2">Copy and paste this into your terminal. Replace <code className="bg-[#1a1a1f] px-1 rounded">sk_your_api_key_here</code> with your actual API key.</p>
                         <pre className="text-xs text-gray-300 overflow-x-auto">
-{`curl -X POST https://your-domain.com/api/v1/chat \\
+{`curl -X POST https://ramahai.vercel.app/api/v1/chat \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "message": "Hello!",
+    "message": "Hello! Can you introduce yourself?",
     "conversation_history": [],
     "temperature": 0.7,
     "max_tokens": 200
   }'`}
                         </pre>
+                        <p className="text-xs text-gray-500 mt-2">
+                          <strong>How it works:</strong> <code className="bg-[#1a1a1f] px-1 rounded">-X POST</code> sets the HTTP method, 
+                          <code className="bg-[#1a1a1f] px-1 rounded">-H</code> adds headers (your API key and content type), 
+                          <code className="bg-[#1a1a1f] px-1 rounded">-d</code> sends the JSON data.
+                        </p>
                       </div>
 
                       <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700 mb-3">
-                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Request (JavaScript):</p>
+                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Request (PowerShell) - Windows:</p>
+                        <p className="text-xs text-gray-500 mb-2">Run these commands in PowerShell. Replace <code className="bg-[#1a1a1f] px-1 rounded">sk_your_api_key_here</code> with your actual API key.</p>
                         <pre className="text-xs text-gray-300 overflow-x-auto">
-{`const response = await fetch('https://your-domain.com/api/v1/chat', {
+{`$apiKey = "sk_your_api_key_here"
+$url = "https://ramahai.vercel.app/api/v1/chat"
+
+$headers = @{
+    "Authorization" = "Bearer $apiKey"
+    "Content-Type" = "application/json"
+}
+
+$body = @{
+    message = "Hello! Can you introduce yourself?"
+    conversation_history = @()
+    temperature = 0.7
+    max_tokens = 200
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body $body`}
+                        </pre>
+                      </div>
+
+                      <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700 mb-3">
+                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Request (JavaScript/Node.js):</p>
+                        <pre className="text-xs text-gray-300 overflow-x-auto">
+{`const response = await fetch('https://ramahai.vercel.app/api/v1/chat', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer sk_your_api_key_here',
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    message: 'Hello!',
+    message: 'Hello! Can you introduce yourself?',
     conversation_history: [],
     temperature: 0.7,
     max_tokens: 200
@@ -645,6 +689,31 @@ export default function DeveloperPortal() {
 
 const data = await response.json();
 console.log(data.response);`}
+                        </pre>
+                      </div>
+
+                      <div className="bg-[#23232a] p-4 rounded-lg border border-gray-700 mb-3">
+                        <p className="text-xs text-gray-400 mb-2 font-semibold">Example Request (Python):</p>
+                        <pre className="text-xs text-gray-300 overflow-x-auto">
+{`import requests
+
+api_key = "sk_your_api_key_here"
+url = "https://ramahai.vercel.app/api/v1/chat"
+
+headers = {
+    "Authorization": f"Bearer {api_key}",
+    "Content-Type": "application/json"
+}
+
+data = {
+    "message": "Hello! Can you introduce yourself?",
+    "conversation_history": [],
+    "temperature": 0.7,
+    "max_tokens": 200
+}
+
+response = requests.post(url, json=data, headers=headers)
+print(response.json())`}
                         </pre>
                       </div>
 

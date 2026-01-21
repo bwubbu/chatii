@@ -323,6 +323,16 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
       sender: "user",
     });
 
+    // Update conversation's last_message_at and updated_at
+    const now = new Date().toISOString();
+    await supabase
+      .from("conversations")
+      .update({ 
+        last_message_at: now,
+        updated_at: now 
+      })
+      .eq("id", conversation);
+
     try {
       // Build RAG query based on user demographics and conversation context
       const recentMessages = messages.slice(-3).map(msg => msg.content).join(" ") + " " + content;
@@ -583,6 +593,16 @@ Remember: You ARE this persona. Act accordingly.
         content: responseText,
         sender: "assistant",
       });
+
+      // Update conversation's last_message_at and updated_at
+      const now = new Date().toISOString();
+      await supabase
+        .from("conversations")
+        .update({ 
+          last_message_at: now,
+          updated_at: now 
+        })
+        .eq("id", conversation);
 
       // Generate conversation title after a few messages (like ChatGPT)
       // Generate title after 2-3 exchanges (4-6 messages total)

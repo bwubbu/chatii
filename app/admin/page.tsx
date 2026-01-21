@@ -265,8 +265,8 @@ export default function AdminPage() {
       
       // Fetch all data in parallel
       const fetchPromise = Promise.all([
-        supabase.from("conversations").select("id, persona_id, created_at, updated_at, user_id"),
-        supabase.from("messages").select("id, conversation_id, created_at"),
+        supabase.from("conversations").select("id, persona_id, created_at, updated_at, last_message_at, user_id"),
+        supabase.from("messages").select("id, conversation_id, created_at").order("created_at", { ascending: false }),
         supabase.from("feedback_questionnaire").select("id, open_ended, created_at, persona_id, politeness, fairness, respectfulness, trustworthiness, competence, likeability"),
         supabase.from("flagged_messages").select("id, created_at"),
         supabase.from("demographics").select("*"),
@@ -371,11 +371,14 @@ export default function AdminPage() {
       }
 
       // Calculate average session duration from conversation timestamps
+      // Use last_message_at if available, otherwise fall back to updated_at
       const sessionDurations = conversations
-        .filter(c => c.created_at && c.updated_at)
+        .filter(c => c.created_at && (c.updated_at || c.last_message_at))
         .map(c => {
           const start = new Date(c.created_at).getTime()
-          const end = new Date(c.updated_at).getTime()
+          // Prefer last_message_at, fall back to updated_at
+          const endTime = c.last_message_at || c.updated_at
+          const end = new Date(endTime).getTime()
           return (end - start) / (1000 * 60) // Convert to minutes
         })
         .filter(duration => duration > 0 && duration < 1440) // Filter out invalid durations (0 or > 24 hours)
