@@ -15,13 +15,9 @@ skinparam usecase {
 ' ============================================
 package "Module 1: User Management" <<Module1>> {
     actor "User" as User1
-    usecase "UC-001: Register Account" as UC001
-    usecase "UC-002: Log In" as UC002
-    usecase "UC-003: Reset Password" as UC003
+    usecase "UC-001: Manage User Account\n(FR-001, FR-002, FR-003)" as UC001
     
     User1 --> UC001
-    User1 --> UC002
-    User1 --> UC003
 }
 
 ' ============================================
@@ -30,11 +26,11 @@ package "Module 1: User Management" <<Module1>> {
 package "Module 2: Persona Repository" <<Module2>> {
     actor "Admin" as Admin2
     actor "User" as User2
-    usecase "UC-004: Manage Personas" as UC004
-    usecase "UC-005: Export Persona Configuration" as UC005
+    usecase "UC-002: Manage Personas\n(FR-004)" as UC002_2
+    usecase "UC-003: Export Persona Configuration\n(FR-005)" as UC003_2
     
-    Admin2 --> UC004
-    User2 --> UC005
+    Admin2 --> UC002_2
+    User2 --> UC003_2
 }
 
 ' ============================================
@@ -42,19 +38,9 @@ package "Module 2: Persona Repository" <<Module2>> {
 ' ============================================
 package "Module 3: Interaction & Conversation Engine" <<Module3>> {
     actor "User" as User3
-    usecase "UC-006: Generate LLM Response" as UC006
-    usecase "UC-007: Maintain Conversation History" as UC007
-    usecase "UC-008: Select and Interact with Persona" as UC008
-    usecase "UC-009: Ensure Fair and Polite Responses" as UC009
-    usecase "UC-010: Voice Input via STT" as UC010
-    usecase "UC-011: Retrieve Knowledge via RAG" as UC011
+    usecase "UC-004: Interact with Chatbot Persona\n(FR-006, FR-007, FR-008, FR-009, FR-010, FR-011)" as UC004
     
-    User3 --> UC006
-    User3 --> UC007
-    User3 --> UC008
-    User3 --> UC009
-    User3 --> UC010
-    User3 --> UC011
+    User3 --> UC004
 }
 
 ' ============================================
@@ -62,13 +48,9 @@ package "Module 3: Interaction & Conversation Engine" <<Module3>> {
 ' ============================================
 package "Module 4: Training Session" <<Module4>> {
     actor "User" as User4
-    usecase "UC-012: Manage Training Sessions" as UC012
-    usecase "UC-013: Simulate Challenging AI Persona" as UC013
-    usecase "UC-014: Generate Session Summary" as UC014
+    usecase "UC-005: Participate in Training Session\n(FR-012, FR-013, FR-014)" as UC005
     
-    User4 --> UC012
-    User4 --> UC013
-    User4 --> UC014
+    User4 --> UC005
 }
 
 ' ============================================
@@ -76,15 +58,14 @@ package "Module 4: Training Session" <<Module4>> {
 ' ============================================
 package "Module 5: Feedback & Continuous Learning" <<Module5>> {
     actor "User" as User5
-    usecase "UC-015: Answer Fairness Questionnaire" as UC015
-    usecase "UC-016: Store and Aggregate Survey Results" as UC016
-    usecase "UC-017: Flag Inappropriate Responses" as UC017
-    usecase "UC-018: Fine-tune Personas from Feedback" as UC018
+    actor "Time" as Time5
+    usecase "UC-006: Provide Feedback\n(FR-015, FR-017)" as UC006
+    usecase "UC-007: Store and Aggregate Feedback Data\n(FR-016)" as UC007
+    usecase "UC-008: Fine-tune Personas from Feedback\n(FR-018)" as UC008
     
-    User5 --> UC015
-    User5 --> UC016
-    User5 --> UC017
-    User5 --> UC018
+    User5 --> UC006
+    UC006 ..> UC007 : <<include>>
+    Time5 --> UC008
 }
 
 ' ============================================
@@ -92,125 +73,86 @@ package "Module 5: Feedback & Continuous Learning" <<Module5>> {
 ' ============================================
 package "Module 6: Admin Management & Analytics" <<Module6>> {
     actor "Admin" as Admin6
-    usecase "UC-019: Admin Log In" as UC019
-    usecase "UC-020: View Admin Dashboard" as UC020
-    usecase "UC-021: Log User Interactions" as UC021
-    usecase "UC-022: Generate Analytics Reports" as UC022
+    usecase "UC-009: Admin Log In\n(FR-019)" as UC009
+    usecase "UC-010: View Analytics and Reports\n(FR-020, FR-022)" as UC010
+    usecase "UC-011: Log User Interactions\n(FR-021)" as UC011
     
-    Admin6 --> UC019
-    Admin6 --> UC020
-    Admin6 --> UC021
-    Admin6 --> UC022
+    Admin6 --> UC009
+    Admin6 --> UC010
+    UC004 ..> UC011 : <<include>>
+    UC005 ..> UC011 : <<include>>
+    UC006 ..> UC011 : <<include>>
 }
 
 note right of UC001
-  Priority: High
+  Covers: FR-001, FR-002, FR-003
+  Priority: High (FR-001, FR-002), Medium (FR-003)
   Source: Core
 end note
 
-note right of UC002
+note right of UC002_2
+  Covers: FR-004
   Priority: High
-  Source: Core
+  Source: Collaborator
 end note
 
-note right of UC003
-  Priority: Medium
-  Source: Core
+note right of UC003_2
+  Covers: FR-005
+  Priority: High
+  Source: Survey
 end note
 
 note right of UC004
-  Priority: High
-  Source: Collaborator
+  Covers: FR-006, FR-007, FR-008, FR-009, FR-010, FR-011
+  Priority: High (FR-006, FR-008, FR-009), Medium (FR-010), Low (FR-007, FR-011)
+  Source: Core, Survey, Collaborator
 end note
 
 note right of UC005
-  Priority: High
-  Source: Survey
+  Covers: FR-012, FR-013, FR-014
+  Priority: High (FR-013, FR-014), Medium (FR-012)
+  Source: Collaborator
 end note
 
 note right of UC006
+  Covers: FR-015, FR-017
   Priority: High
-  Source: Core
+  Source: Collaborator, Survey
 end note
 
-note right of UC007
-  Priority: Low
-  Source: Survey
-end note
-
-note right of UC008
-  Priority: High
-  Source: Survey
-end note
 
 note right of UC009
+  Covers: FR-019
   Priority: High
-  Source: Collaborator
+  Source: Core
 end note
 
 note right of UC010
+  Covers: FR-020, FR-022
   Priority: Medium
-  Source: Survey
+  Source: Core, Collaborator
 end note
 
 note right of UC011
-  Priority: Low
-  Source: Collaborator
-end note
-
-note right of UC012
-  Priority: Medium
-  Source: Collaborator
-end note
-
-note right of UC013
-  Priority: High
-  Source: Collaborator
-end note
-
-note right of UC014
-  Priority: High
-  Source: Collaborator
-end note
-
-note right of UC015
-  Priority: High
-  Source: Collaborator
-end note
-
-note right of UC016
-  Priority: High
-  Source: Collaborator
-end note
-
-note right of UC017
-  Priority: High
-  Source: Survey
-end note
-
-note right of UC018
-  Priority: Low
-  Source: Collaborator
-end note
-
-note right of UC019
-  Priority: High
-  Source: Core
-end note
-
-note right of UC020
-  Priority: Medium
-  Source: Core
-end note
-
-note right of UC021
+  Covers: FR-021
   Priority: Low
   Source: Core
+  Note: Automatically triggered by user interactions
+  (included by UC-004, UC-005, UC-006)
 end note
 
-note right of UC022
-  Priority: Medium
+note right of UC007
+  Covers: FR-016
+  Priority: High
   Source: Collaborator
+  Note: Automatically triggered when feedback is provided
+end note
+
+note right of UC008
+  Covers: FR-018
+  Priority: Low
+  Source: Collaborator
+  Note: Periodically triggered by Time actor
 end note
 
 @enduml

@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/supabaseClient"
 import { Button } from "@/components/ui/button"
@@ -130,6 +130,8 @@ export default function AdminPage() {
   const [editingTrainingScenario, setEditingTrainingScenario] = useState<TrainingScenarioFormData | null>(null)
   const [selectedFlaggedMessage, setSelectedFlaggedMessage] = useState<any>(null)
   const [isFlaggedMessageDialogOpen, setIsFlaggedMessageDialogOpen] = useState(false)
+  const [selectedPersonaRequest, setSelectedPersonaRequest] = useState<any>(null)
+  const [isPersonaRequestDialogOpen, setIsPersonaRequestDialogOpen] = useState(false)
   
   // Export training data state
   const [isExporting, setIsExporting] = useState(false)
@@ -191,6 +193,26 @@ export default function AdminPage() {
     getUser()
   }, [router])
 
+  // Set loading state immediately when tab changes (synchronously before render)
+  useLayoutEffect(() => {
+    if (user && user.email === ADMIN_EMAIL) {
+      // Set loading state synchronously for the active tab to prevent content flash
+      if (activeTab === "overview") {
+        setLoadingOverview(true);
+      } else if (activeTab === "personas") {
+        setLoadingPersonas(true);
+      } else if (activeTab === "moderation") {
+        setLoadingModeration(true);
+      } else if (activeTab === "api-keys") {
+        setLoadingApiKeys(true);
+      } else if (activeTab === "persona-requests") {
+        setLoadingPersonaRequests(true);
+      } else if (activeTab === "training-scenarios") {
+        setLoadingTrainingScenarios(true);
+      }
+    }
+  }, [user, activeTab])
+
   useEffect(() => {
     if (user && user.email === ADMIN_EMAIL) {
       let isMounted = true;
@@ -198,21 +220,16 @@ export default function AdminPage() {
       const loadData = async () => {
         try {
           // Always fetch analytics data (needed for overview and other tabs may use it)
-          if (activeTab === "overview") {
-            setLoadingOverview(true);
-          }
           await fetchAnalyticsData();
           if (!isMounted) return;
           
           if (activeTab === "overview") {
             setLoadingOverview(false);
           } else if (activeTab === "personas") {
-            setLoadingPersonas(true);
             await fetchPersonas();
             if (!isMounted) return;
             setLoadingPersonas(false);
           } else if (activeTab === "moderation") {
-            setLoadingModeration(true);
             await Promise.all([
               fetchFlaggedMessages(),
               fetchPersonas(),
@@ -221,17 +238,14 @@ export default function AdminPage() {
             if (!isMounted) return;
             setLoadingModeration(false);
           } else if (activeTab === "api-keys") {
-            setLoadingApiKeys(true);
             await fetchAPIKeys();
             if (!isMounted) return;
             setLoadingApiKeys(false);
           } else if (activeTab === "persona-requests") {
-            setLoadingPersonaRequests(true);
             await fetchPersonaRequests();
             if (!isMounted) return;
             setLoadingPersonaRequests(false);
           } else if (activeTab === "training-scenarios") {
-            setLoadingTrainingScenarios(true);
             await fetchTrainingScenarios();
             if (!isMounted) return;
             setLoadingTrainingScenarios(false);
@@ -1182,6 +1196,7 @@ export default function AdminPage() {
       if (response.ok) {
         await fetchPersonaRequests();
         setEditingRequest(null);
+        setSelectedPersonaRequest(null);
         setAdminNotes("");
         alert("Request updated successfully");
       } else {
@@ -1918,9 +1933,9 @@ export default function AdminPage() {
             ) : (
               <Card className="bg-[#1a1a1f] border-gray-700">
                 <CardContent className="p-0">
-                  <div className="max-h-[600px] overflow-y-auto">
+                  <div className="max-h-[380px] overflow-y-auto">
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="sticky top-0 bg-[#1a1a1f] z-10">
                         <TableRow className="border-gray-700">
                           <TableHead className="text-gray-400">Persona</TableHead>
                           <TableHead className="text-gray-400">Severity</TableHead>
@@ -2124,7 +2139,7 @@ export default function AdminPage() {
                   Training Data Management
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Export and upload training data for RAG/embeddings or fine-tuning. Export positive examples (high-quality feedback) and negative examples (flagged messages).
+                  Export data from Supabase (download JSONL files) or upload new data to Supabase (insert from JSONL files). These are independent operations for managing training data for RAG/embeddings.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -2221,6 +2236,9 @@ export default function AdminPage() {
                     <h3 className="text-lg font-semibold text-white">Positive Examples</h3>
                   </div>
                   <p className="text-sm text-gray-400">High-quality feedback conversations that show what the chatbot SHOULD do.</p>
+                  <div className="bg-blue-900/20 border border-blue-700/50 rounded-md p-3 text-sm text-blue-200">
+                    <strong>Note:</strong> Export downloads data from Supabase. Upload/Insert adds new data to Supabase. These are independent operations - you can use either one.
+                  </div>
                   
                   {/* Score Filter */}
                   <div className="space-y-2">
@@ -2314,7 +2332,7 @@ export default function AdminPage() {
                             ) : (
                               <>
                                 <Upload className="w-4 h-4 mr-2" />
-                                Upload Positive Examples
+                                Insert into Supabase
                               </>
                             )}
                           </span>
@@ -2340,10 +2358,10 @@ export default function AdminPage() {
                     )}
                     {uploadPositiveSuccess && (
                       <div className="space-y-1">
-                        <span className="text-green-400 text-sm">Upload successful!</span>
+                        <span className="text-green-400 text-sm">✓ Successfully inserted into Supabase!</span>
                         {uploadStats && (
                           <div className="text-xs text-gray-400 ml-4">
-                            Processed: {uploadStats.positive.processed} positive examples
+                            Inserted: {uploadStats.positive.processed} positive examples into conversation_embeddings table
                             {uploadStats.positive.skipped > 0 && (
                               <span className="text-gray-500"> ({uploadStats.positive.skipped} duplicates skipped)</span>
                             )}
@@ -2367,6 +2385,9 @@ export default function AdminPage() {
                     <h3 className="text-lg font-semibold text-white">Negative Examples</h3>
                   </div>
                   <p className="text-sm text-gray-400">Flagged messages that show what the chatbot should NOT do. Only exports resolved/approved flags.</p>
+                  <div className="bg-blue-900/20 border border-blue-700/50 rounded-md p-3 text-sm text-blue-200">
+                    <strong>Note:</strong> Export downloads data from Supabase. Upload/Insert adds new data to Supabase. These are independent operations - you can use either one.
+                  </div>
                   
                   {/* Severity Filter */}
                   <div className="space-y-2">
@@ -2432,7 +2453,7 @@ export default function AdminPage() {
                             ) : (
                               <>
                                 <Upload className="w-4 h-4 mr-2" />
-                                Upload Negative Examples
+                                Insert into Supabase
                               </>
                             )}
                           </span>
@@ -2458,10 +2479,10 @@ export default function AdminPage() {
                     )}
                     {uploadNegativeSuccess && (
                       <div className="space-y-1">
-                        <span className="text-green-400 text-sm">Upload successful!</span>
+                        <span className="text-green-400 text-sm">✓ Successfully inserted into Supabase!</span>
                         {uploadStats && (
                           <div className="text-xs text-gray-400 ml-4">
-                            Processed: {uploadStats.negative.processed} negative examples
+                            Inserted: {uploadStats.negative.processed} negative examples into flag_negative_examples table
                             {uploadStats.negative.skipped > 0 && (
                               <span className="text-gray-500"> ({uploadStats.negative.skipped} duplicates skipped)</span>
                             )}
@@ -2502,170 +2523,243 @@ export default function AdminPage() {
                 {personaRequests.filter(r => r.status === 'pending').length} Pending
               </Badge>
             </div>
-            <Card className="bg-[#1a1a1f] border-gray-700">
-              <CardContent className="p-6">
-                {personaRequests.length === 0 ? (
-                  <div className="text-center py-12">
+            {personaRequests.length === 0 ? (
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-12">
+                  <div className="text-center">
                     <Mail className="w-16 h-16 mx-auto text-gray-600 mb-4" />
                     <h3 className="text-xl font-semibold text-white mb-2">No persona requests yet</h3>
                     <p className="text-gray-400">Users can request new personas from the personas page</p>
                   </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-gray-400">User</TableHead>
-                        <TableHead className="text-gray-400">Persona Name</TableHead>
-                        <TableHead className="text-gray-400">Description</TableHead>
-                        <TableHead className="text-gray-400">Status</TableHead>
-                        <TableHead className="text-gray-400">Date</TableHead>
-                        <TableHead className="text-gray-400 text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {personaRequests.map(request => (
-                        <TableRow key={request.id} className="hover:bg-gray-800/50">
-                          <TableCell className="text-gray-200">{request.user_email || 'Unknown'}</TableCell>
-                          <TableCell className="font-semibold text-white">{request.persona_name}</TableCell>
-                          <TableCell className="text-gray-200 max-w-xs truncate">{request.description}</TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={
-                                request.status === 'approved' ? 'default' :
-                                request.status === 'rejected' ? 'destructive' :
-                                request.status === 'completed' ? 'default' :
-                                'secondary'
-                              }
-                              className={
-                                request.status === 'pending' ? 'bg-yellow-600' :
-                                request.status === 'approved' ? 'bg-blue-600' :
-                                request.status === 'completed' ? 'bg-green-600' :
-                                ''
-                              }
-                            >
-                              {request.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-gray-300">
-                            {new Date(request.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              {request.status === 'pending' && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => updatePersonaRequest(request.id, 'approved')}
-                                    className="hover:bg-green-500/10"
-                                  >
-                                    <Check className="h-4 w-4 text-green-400" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => updatePersonaRequest(request.id, 'rejected')}
-                                    className="hover:bg-red-500/10"
-                                  >
-                                    <X className="h-4 w-4 text-red-400" />
-                                  </Button>
-                                </>
-                              )}
-                              {request.status === 'approved' && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => updatePersonaRequest(request.id, 'completed')}
-                                  className="hover:bg-green-500/10"
-                                >
-                                  <CheckCircle className="h-4 w-4 text-green-400" />
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setEditingRequest(request);
-                                  setAdminNotes(request.admin_notes || '');
-                                }}
-                                className="hover:bg-blue-500/10"
-                              >
-                                <Pencil className="h-4 w-4 text-blue-400" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-[#1a1a1f] border-gray-700">
+                <CardContent className="p-0">
+                  <div className="max-h-[600px] overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-gray-700">
+                          <TableHead className="text-gray-400">User</TableHead>
+                          <TableHead className="text-gray-400">Persona Name</TableHead>
+                          <TableHead className="text-gray-400">Description</TableHead>
+                          <TableHead className="text-gray-400">Status</TableHead>
+                          <TableHead className="text-gray-400">Date</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Edit Request Modal */}
-            {editingRequest && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <Card className="bg-[#1a1a1f] border-gray-700 w-full max-w-2xl m-4">
-                  <CardHeader>
-                    <CardTitle className="text-white">Edit Persona Request</CardTitle>
-                    <CardDescription className="text-gray-400">
-                      Update status and add admin notes
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label className="text-gray-300">Persona Name</Label>
-                      <p className="text-white font-medium">{editingRequest.persona_name}</p>
-                    </div>
-                    <div>
-                      <Label className="text-gray-300">Description</Label>
-                      <p className="text-gray-300">{editingRequest.description}</p>
-                    </div>
-                    <div>
-                      <Label htmlFor="status" className="text-gray-300">Status</Label>
-                      <select
-                        id="status"
-                        value={editingRequest.status}
-                        onChange={(e) => setEditingRequest({...editingRequest, status: e.target.value})}
-                        className="w-full bg-[#171717] border-gray-600 text-white rounded-md px-3 py-2 mt-1"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
-                        <option value="completed">Completed</option>
-                      </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="adminNotes" className="text-gray-300">Admin Notes</Label>
-                      <textarea
-                        id="adminNotes"
-                        value={adminNotes}
-                        onChange={(e) => setAdminNotes(e.target.value)}
-                        className="w-full bg-[#171717] border-gray-600 text-white rounded-md px-3 py-2 mt-1 min-h-[100px]"
-                        placeholder="Add notes about this request..."
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setEditingRequest(null);
-                          setAdminNotes("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => updatePersonaRequest(editingRequest.id, editingRequest.status, adminNotes)}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        Save Changes
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                      </TableHeader>
+                      <TableBody>
+                        {personaRequests.map(request => {
+                          const date = new Date(request.created_at)
+                          const formattedDate = date.toLocaleDateString()
+                          const formattedTime = date.toLocaleTimeString()
+                          
+                          return (
+                            <TableRow 
+                              key={request.id} 
+                              className="border-gray-700 cursor-pointer hover:bg-gray-800/50"
+                              onClick={() => {
+                                setSelectedPersonaRequest(request)
+                                setAdminNotes(request.admin_notes || '')
+                                setIsPersonaRequestDialogOpen(true)
+                              }}
+                            >
+                              <TableCell className="text-gray-200">{request.user_email || 'Unknown'}</TableCell>
+                              <TableCell className="font-semibold text-white">{request.persona_name}</TableCell>
+                              <TableCell className="text-gray-200 max-w-xs truncate">{request.description}</TableCell>
+                              <TableCell>
+                                <Badge 
+                                  variant={
+                                    request.status === 'approved' ? 'default' :
+                                    request.status === 'rejected' ? 'destructive' :
+                                    request.status === 'completed' ? 'default' :
+                                    'secondary'
+                                  }
+                                  className={
+                                    request.status === 'pending' ? 'bg-yellow-600 text-white' :
+                                    request.status === 'approved' ? 'bg-blue-600 text-white' :
+                                    request.status === 'completed' ? 'bg-green-600 text-white' :
+                                    'bg-red-600 text-white'
+                                  }
+                                >
+                                  {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-gray-300">
+                                <div className="text-sm">
+                                  <div>{formattedDate}</div>
+                                  <div className="text-gray-500">{formattedTime}</div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
             )}
+
+            {/* Persona Request Detail Dialog */}
+            <Dialog open={isPersonaRequestDialogOpen} onOpenChange={(open) => {
+              setIsPersonaRequestDialogOpen(open)
+              if (!open) {
+                setSelectedPersonaRequest(null)
+                setAdminNotes("")
+              }
+            }}>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-[#1a1a1f] border-gray-700 text-white">
+                {selectedPersonaRequest && (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle className="text-white">Persona Request Details</DialogTitle>
+                      <DialogDescription className="text-gray-400">
+                        Review and manage persona request
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-6">
+                      {/* Request Header */}
+                      <div className="bg-[#171717] border border-gray-700 rounded-lg p-4">
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center flex-shrink-0">
+                            <span className="text-2xl font-bold text-white">{selectedPersonaRequest.persona_name?.[0] || "?"}</span>
+                          </div>
+                          
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge 
+                                variant={
+                                  selectedPersonaRequest.status === 'approved' ? 'default' :
+                                  selectedPersonaRequest.status === 'rejected' ? 'destructive' :
+                                  selectedPersonaRequest.status === 'completed' ? 'default' :
+                                  'secondary'
+                                }
+                                className={
+                                  selectedPersonaRequest.status === 'pending' ? 'bg-yellow-600 text-white' :
+                                  selectedPersonaRequest.status === 'approved' ? 'bg-blue-600 text-white' :
+                                  selectedPersonaRequest.status === 'completed' ? 'bg-green-600 text-white' :
+                                  'bg-red-600 text-white'
+                                }
+                              >
+                                {selectedPersonaRequest.status.charAt(0).toUpperCase() + selectedPersonaRequest.status.slice(1)}
+                              </Badge>
+                            </div>
+                            <div className="text-gray-400 text-sm">
+                              {new Date(selectedPersonaRequest.created_at).toLocaleDateString()} {new Date(selectedPersonaRequest.created_at).toLocaleTimeString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Persona Name */}
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-2">Persona Name</h3>
+                        <div className="bg-[#171717] border border-gray-700 rounded-lg p-4">
+                          <p className="text-white font-medium">{selectedPersonaRequest.persona_name}</p>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-400 mb-2">Description</h4>
+                        <div className="bg-[#171717] border border-gray-700 rounded-lg p-4">
+                          <p className="text-gray-200 whitespace-pre-wrap">{selectedPersonaRequest.description}</p>
+                        </div>
+                      </div>
+
+                      {/* User Information */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-400 mb-2">Requested By</h4>
+                        <div className="bg-[#171717] border border-gray-700 rounded-lg p-4">
+                          <p className="text-gray-200">
+                            <span className="text-gray-400">Email:</span> {selectedPersonaRequest.user_email || 'Unknown'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Admin Notes */}
+                      <div>
+                        <Label htmlFor="adminNotes" className="text-gray-300">Admin Notes</Label>
+                        <textarea
+                          id="adminNotes"
+                          value={adminNotes}
+                          onChange={(e) => setAdminNotes(e.target.value)}
+                          className="w-full bg-[#171717] border-gray-600 text-white rounded-md px-3 py-2 mt-1 min-h-[100px]"
+                          placeholder="Add notes about this request..."
+                        />
+                      </div>
+
+                      {/* Status Selection */}
+                      <div>
+                        <Label htmlFor="status" className="text-gray-300">Status</Label>
+                        <select
+                          id="status"
+                          value={selectedPersonaRequest.status}
+                          onChange={(e) => setSelectedPersonaRequest({...selectedPersonaRequest, status: e.target.value})}
+                          className="w-full bg-[#171717] border-gray-600 text-white rounded-md px-3 py-2 mt-1"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="approved">Approved</option>
+                          <option value="rejected">Rejected</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-3 pt-4 border-t border-gray-700">
+                        {selectedPersonaRequest.status === 'pending' && (
+                          <>
+                            <Button
+                              onClick={() => {
+                                updatePersonaRequest(selectedPersonaRequest.id, 'approved', adminNotes)
+                                setIsPersonaRequestDialogOpen(false)
+                              }}
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Approve
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                updatePersonaRequest(selectedPersonaRequest.id, 'rejected', adminNotes)
+                                setIsPersonaRequestDialogOpen(false)
+                              }}
+                              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {selectedPersonaRequest.status === 'approved' && (
+                          <Button
+                            onClick={() => {
+                              updatePersonaRequest(selectedPersonaRequest.id, 'completed', adminNotes)
+                              setIsPersonaRequestDialogOpen(false)
+                            }}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Mark as Completed
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() => {
+                            setIsPersonaRequestDialogOpen(false)
+                            setAdminNotes("")
+                          }}
+                          className="bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
+                        >
+                          Close
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </DialogContent>
+            </Dialog>
+
               </>
             )}
           </div>
