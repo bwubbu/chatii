@@ -274,26 +274,6 @@ export default function TrainingSessionPage({
       setScenario(null);
     }
   };
-            // New session - use global language preference (no dialog needed)
-            const isResuming = await createSession(id, data.initialMessage);
-            if (!isResuming) {
-              const initialMessage: Message = {
-                id: "initial",
-                role: "assistant",
-                content: data.initialMessage,
-                timestamp: new Date(),
-              };
-              setMessages([initialMessage]);
-              // Initial message is already saved in createSession for new sessions
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error loading scenario:", error);
-      setScenario(null);
-    }
-  };
 
   // Language is now controlled globally, so we don't need handleLanguageSelection
 

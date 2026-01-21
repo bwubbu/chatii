@@ -1,0 +1,216 @@
+@startuml Use Case Diagram - Chatii System
+!theme plain
+skinparam packageStyle rectangle
+skinparam usecase {
+    BackgroundColor<<Module1>> LightGreen
+    BackgroundColor<<Module2>> LightYellow
+    BackgroundColor<<Module3>> LightPink
+    BackgroundColor<<Module4>> LightBlue
+    BackgroundColor<<Module5>> LightCyan
+    BackgroundColor<<Module6>> LightMagenta
+}
+
+' ============================================
+' Module 1: User Management Module
+' ============================================
+package "Module 1: User Management" <<Module1>> {
+    actor "User" as User1
+    usecase "UC-001: Register Account" as UC001
+    usecase "UC-002: Log In" as UC002
+    usecase "UC-003: Reset Password" as UC003
+    
+    User1 --> UC001
+    User1 --> UC002
+    User1 --> UC003
+}
+
+' ============================================
+' Module 2: Persona Repository Module
+' ============================================
+package "Module 2: Persona Repository" <<Module2>> {
+    actor "Admin" as Admin2
+    actor "User" as User2
+    usecase "UC-004: Manage Personas" as UC004
+    usecase "UC-005: Export Persona Configuration" as UC005
+    
+    Admin2 --> UC004
+    User2 --> UC005
+}
+
+' ============================================
+' Module 3: Interaction & Conversation Engine
+' ============================================
+package "Module 3: Interaction & Conversation Engine" <<Module3>> {
+    actor "User" as User3
+    usecase "UC-006: Generate LLM Response" as UC006
+    usecase "UC-007: Maintain Conversation History" as UC007
+    usecase "UC-008: Select and Interact with Persona" as UC008
+    usecase "UC-009: Ensure Fair and Polite Responses" as UC009
+    usecase "UC-010: Voice Input via STT" as UC010
+    usecase "UC-011: Retrieve Knowledge via RAG" as UC011
+    
+    User3 --> UC006
+    User3 --> UC007
+    User3 --> UC008
+    User3 --> UC009
+    User3 --> UC010
+    User3 --> UC011
+}
+
+' ============================================
+' Module 4: Training Session Module
+' ============================================
+package "Module 4: Training Session" <<Module4>> {
+    actor "User" as User4
+    usecase "UC-012: Manage Training Sessions" as UC012
+    usecase "UC-013: Simulate Challenging AI Persona" as UC013
+    usecase "UC-014: Generate Session Summary" as UC014
+    
+    User4 --> UC012
+    User4 --> UC013
+    User4 --> UC014
+}
+
+' ============================================
+' Module 5: Feedback & Continuous Learning
+' ============================================
+package "Module 5: Feedback & Continuous Learning" <<Module5>> {
+    actor "User" as User5
+    usecase "UC-015: Answer Fairness Questionnaire" as UC015
+    usecase "UC-016: Store and Aggregate Survey Results" as UC016
+    usecase "UC-017: Flag Inappropriate Responses" as UC017
+    usecase "UC-018: Fine-tune Personas from Feedback" as UC018
+    
+    User5 --> UC015
+    User5 --> UC016
+    User5 --> UC017
+    User5 --> UC018
+}
+
+' ============================================
+' Module 6: Admin Management & Analytics
+' ============================================
+package "Module 6: Admin Management & Analytics" <<Module6>> {
+    actor "Admin" as Admin6
+    usecase "UC-019: Admin Log In" as UC019
+    usecase "UC-020: View Admin Dashboard" as UC020
+    usecase "UC-021: Log User Interactions" as UC021
+    usecase "UC-022: Generate Analytics Reports" as UC022
+    
+    Admin6 --> UC019
+    Admin6 --> UC020
+    Admin6 --> UC021
+    Admin6 --> UC022
+}
+
+note right of UC001
+  Priority: High
+  Source: Core
+end note
+
+note right of UC002
+  Priority: High
+  Source: Core
+end note
+
+note right of UC003
+  Priority: Medium
+  Source: Core
+end note
+
+note right of UC004
+  Priority: High
+  Source: Collaborator
+end note
+
+note right of UC005
+  Priority: High
+  Source: Survey
+end note
+
+note right of UC006
+  Priority: High
+  Source: Core
+end note
+
+note right of UC007
+  Priority: Low
+  Source: Survey
+end note
+
+note right of UC008
+  Priority: High
+  Source: Survey
+end note
+
+note right of UC009
+  Priority: High
+  Source: Collaborator
+end note
+
+note right of UC010
+  Priority: Medium
+  Source: Survey
+end note
+
+note right of UC011
+  Priority: Low
+  Source: Collaborator
+end note
+
+note right of UC012
+  Priority: Medium
+  Source: Collaborator
+end note
+
+note right of UC013
+  Priority: High
+  Source: Collaborator
+end note
+
+note right of UC014
+  Priority: High
+  Source: Collaborator
+end note
+
+note right of UC015
+  Priority: High
+  Source: Collaborator
+end note
+
+note right of UC016
+  Priority: High
+  Source: Collaborator
+end note
+
+note right of UC017
+  Priority: High
+  Source: Survey
+end note
+
+note right of UC018
+  Priority: Low
+  Source: Collaborator
+end note
+
+note right of UC019
+  Priority: High
+  Source: Core
+end note
+
+note right of UC020
+  Priority: Medium
+  Source: Core
+end note
+
+note right of UC021
+  Priority: Low
+  Source: Core
+end note
+
+note right of UC022
+  Priority: Medium
+  Source: Collaborator
+end note
+
+@enduml
