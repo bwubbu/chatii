@@ -9,7 +9,7 @@ import {
   BarChart2, User, MessageCircle, Download, Activity, Users, Flag, ListChecks, 
   PlusCircle, Pencil, Trash2, Shield, Heart, Brain, TrendingUp, TrendingDown, AlertTriangle,
   CheckCircle, Clock, Target, Zap, Eye, ThumbsUp, Star, UserCheck, Key,
-  Mail, X, Check, Power, PowerOff, Ban, Upload
+  Mail, X, Check, Power, PowerOff, Ban, Upload, Loader2
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -169,6 +169,14 @@ export default function AdminPage() {
   } | null>(null)
   const [isLoadingInsights, setIsLoadingInsights] = useState(false)
   
+  // Tab loading states
+  const [loadingOverview, setLoadingOverview] = useState(true)
+  const [loadingPersonas, setLoadingPersonas] = useState(false)
+  const [loadingApiKeys, setLoadingApiKeys] = useState(false)
+  const [loadingModeration, setLoadingModeration] = useState(false)
+  const [loadingPersonaRequests, setLoadingPersonaRequests] = useState(false)
+  const [loadingTrainingScenarios, setLoadingTrainingScenarios] = useState(false)
+  
   const router = useRouter()
 
   useEffect(() => {
@@ -189,30 +197,54 @@ export default function AdminPage() {
       
       const loadData = async () => {
         try {
+          // Always fetch analytics data (needed for overview and other tabs may use it)
+          if (activeTab === "overview") {
+            setLoadingOverview(true);
+          }
           await fetchAnalyticsData();
           if (!isMounted) return;
           
-          if (activeTab === "personas") {
+          if (activeTab === "overview") {
+            setLoadingOverview(false);
+          } else if (activeTab === "personas") {
+            setLoadingPersonas(true);
             await fetchPersonas();
-          }
-          if (activeTab === "moderation") {
+            if (!isMounted) return;
+            setLoadingPersonas(false);
+          } else if (activeTab === "moderation") {
+            setLoadingModeration(true);
             await Promise.all([
               fetchFlaggedMessages(),
               fetchPersonas(),
               fetchTrainingDataInsights()
             ]);
-          }
-          if (activeTab === "api-keys") {
+            if (!isMounted) return;
+            setLoadingModeration(false);
+          } else if (activeTab === "api-keys") {
+            setLoadingApiKeys(true);
             await fetchAPIKeys();
-          }
-          if (activeTab === "persona-requests") {
+            if (!isMounted) return;
+            setLoadingApiKeys(false);
+          } else if (activeTab === "persona-requests") {
+            setLoadingPersonaRequests(true);
             await fetchPersonaRequests();
-          }
-          if (activeTab === "training-scenarios") {
+            if (!isMounted) return;
+            setLoadingPersonaRequests(false);
+          } else if (activeTab === "training-scenarios") {
+            setLoadingTrainingScenarios(true);
             await fetchTrainingScenarios();
+            if (!isMounted) return;
+            setLoadingTrainingScenarios(false);
           }
         } catch (error) {
           console.error("Error loading admin data:", error);
+          // Reset loading state on error
+          if (activeTab === "overview") setLoadingOverview(false);
+          else if (activeTab === "personas") setLoadingPersonas(false);
+          else if (activeTab === "moderation") setLoadingModeration(false);
+          else if (activeTab === "api-keys") setLoadingApiKeys(false);
+          else if (activeTab === "persona-requests") setLoadingPersonaRequests(false);
+          else if (activeTab === "training-scenarios") setLoadingTrainingScenarios(false);
         }
       };
       
@@ -1425,30 +1457,16 @@ export default function AdminPage() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-8">
+            {loadingOverview ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <>
             {/* Key Metrics Section */}
             <div>
               <h2 className="text-2xl font-bold text-white text-center mb-6">Key Metrics</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-              <Card className="bg-[#1a1a1f] border-gray-700">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm">Total Users</p>
-                      <p className="text-2xl font-bold text-white">{analyticsData.totalUsers.toLocaleString()}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center">
-                      <User className="w-6 h-6 text-blue-400" />
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center">
-                    <TrendingUp className={`w-4 h-4 mr-1 ${analyticsData.userGrowthPercent >= 0 ? 'text-green-400' : 'text-red-400'}`} />
-                    <span className={`text-sm ${analyticsData.userGrowthPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {analyticsData.userGrowthPercent >= 0 ? '+' : ''}{analyticsData.userGrowthPercent.toFixed(1)}% from last week
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <Card className="bg-[#1a1a1f] border-gray-700">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -1505,24 +1523,6 @@ export default function AdminPage() {
                        analyticsData.userSatisfaction >= 3 ? 'Good' : 
                        analyticsData.userSatisfaction >= 2 ? 'Fair' : 'Needs Improvement'}
                     </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-[#1a1a1f] border-gray-700">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm">Active Users (24h)</p>
-                      <p className="text-2xl font-bold text-white">{analyticsData.activeUsers24h}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
-                      <Activity className="w-6 h-6 text-yellow-400" />
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center">
-                    <Eye className="w-4 h-4 text-blue-400 mr-1" />
-                    <span className="text-blue-400 text-sm">Real-time data</span>
                   </div>
                 </CardContent>
               </Card>
@@ -1694,12 +1694,20 @@ export default function AdminPage() {
               </Card>
               </div>
             </div>
+              </>
+            )}
           </div>
         )}
 
         {/* Personas Tab */}
         {activeTab === "personas" && (
           <div className="space-y-6">
+            {loadingPersonas ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <>
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-3xl font-bold text-white mb-2">Manage Personas</h2>
@@ -1840,12 +1848,20 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
+              </>
+            )}
           </div>
         )}
 
         {/* API Keys Tab */}
         {activeTab === "api-keys" && (
           <div className="space-y-6">
+            {loadingApiKeys ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <>
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-3xl font-bold text-white mb-2">API Key Management</h2>
@@ -1914,12 +1930,20 @@ export default function AdminPage() {
                   )}
               </CardContent>
             </Card>
+              </>
+            )}
           </div>
         )}
 
         {/* Moderation & Training Data Tab */}
         {activeTab === "moderation" && (
           <div className="space-y-6">
+            {loadingModeration ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <>
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-3xl font-bold text-white mb-2">Data Collection & Training</h2>
@@ -2577,12 +2601,20 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card>
+              </>
+            )}
           </div>
         )}
 
         {/* Persona Requests Tab */}
         {activeTab === "persona-requests" && (
           <div className="space-y-6">
+            {loadingPersonaRequests ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <>
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-3xl font-bold text-white mb-2">Persona Requests</h2>
@@ -2756,12 +2788,20 @@ export default function AdminPage() {
                 </Card>
               </div>
             )}
+              </>
+            )}
           </div>
         )}
 
         {/* Training Scenarios Tab */}
         {activeTab === "training-scenarios" && (
           <div className="space-y-6">
+            {loadingTrainingScenarios ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <>
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-3xl font-bold text-white mb-2">Manage Training Scenarios</h2>
@@ -2945,6 +2985,8 @@ export default function AdminPage() {
                   </Table>
                 </CardContent>
               </Card>
+            )}
+              </>
             )}
           </div>
         )}
