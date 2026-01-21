@@ -143,13 +143,21 @@ export async function POST(request: NextRequest) {
 
     const trainedModelData = await trainedModelResponse.json();
 
+    // Clean the response text to fix encoding issues
+    let cleanedResponse = trainedModelData.response || "";
+    if (cleanedResponse) {
+      // Remove any control characters that might corrupt emojis
+      cleanedResponse = cleanedResponse.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+      cleanedResponse = cleanedResponse.trim();
+    }
+
     // Return response in a clean format
     return NextResponse.json({
-      response: trainedModelData.response,
+      response: cleanedResponse,
       model: trainedModelData.model,
       persona: {
         id: persona.id,
-        name: persona.name,
+        name: persona.name || persona.title,
       },
       usage: {
         remaining: Math.max(0, keyInfo.rate_limit - keyInfo.usage_count),
@@ -158,6 +166,10 @@ export async function POST(request: NextRequest) {
       metadata: {
         processing_time_ms: trainedModelData.processing_time_ms,
         timestamp: trainedModelData.timestamp,
+      },
+    }, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
       },
     });
   } catch (error) {

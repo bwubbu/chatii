@@ -352,7 +352,18 @@ async function callGemini(
   }
 
   const geminiData = await geminiResponse.json();
-  const responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "I apologize, but I couldn't generate a response.";
+  let responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "I apologize, but I couldn't generate a response.";
+  
+  // Clean the response: trim whitespace
+  responseText = responseText.trim();
+  
+  // Remove any corrupted UTF-8 sequences that might cause emoji display issues
+  // This ensures proper UTF-8 encoding for emojis and special characters
+  if (responseText) {
+    // Replace any invalid UTF-8 sequences with empty string
+    // This helps fix corrupted emoji characters
+    responseText = responseText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+  }
   
   return {
     response: responseText,
