@@ -118,8 +118,8 @@ export function ChatMessage({ message, hideFlag = false, conversationId }: ChatM
       } else {
         console.log('Flag successfully inserted!', result);
         toast({ 
-          title: "Response flagged!", 
-          description: `Flagged as: ${flagTypeData?.label}`,
+          title: "Message successfully reported!", 
+          description: "Thank you for your feedback. This will help us make our AI responses better in the future.",
           variant: "default" 
         });
       }

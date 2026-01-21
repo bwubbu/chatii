@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import FeedbackQuestionnaire from "@/components/feedback/FeedbackQuestionnaire";
 import { useLanguage } from "@/components/LanguageContext";
+import { useToast } from "@/components/ui/use-toast";
 
 
 interface Message {
@@ -48,6 +49,7 @@ export default function ConversationPage({ params }: { params: Promise<{ persona
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [isNavigatingAway, setIsNavigatingAway] = useState(false);
   const { language } = useLanguage();
+  const { toast } = useToast();
   
   // Add ref for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -686,7 +688,11 @@ Remember: You ARE this persona. Act accordingly.
       // Get the current user's session token
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        alert("You must be logged in to flag messages");
+        toast({
+          title: "Login Required",
+          description: "You must be logged in to flag messages",
+          variant: "destructive",
+        });
         setFlagLoading(false);
         setFlagModalOpen(false);
         setFlagReason("");
@@ -717,10 +723,20 @@ Remember: You ARE this persona. Act accordingly.
       // Success - close modal and reset
       setFlagModalOpen(false);
       setFlagReason("");
-      // Optionally show a success message
+      
+      // Show success toast
+      toast({
+        title: "Message successfully reported!",
+        description: "Thank you for your feedback. This will help us make our AI responses better in the future.",
+        variant: "default",
+      });
     } catch (error: any) {
       console.error("Error flagging message:", error);
-      alert(error.message || "Failed to flag message. Please try again.");
+      toast({
+        title: "Failed to flag message",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setFlagLoading(false);
     }
@@ -916,7 +932,7 @@ Remember: You ARE this persona. Act accordingly.
         <div className="flex-1 overflow-y-auto min-h-0">
           <div className="flex flex-col gap-3 px-8 py-6 max-w-6xl mx-auto w-full">
             {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} />
+              <ChatMessage key={msg.id} message={msg} conversationId={conversation} />
             ))}
             {isLoading && (
               <div className="flex justify-start">

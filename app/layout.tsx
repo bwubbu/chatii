@@ -4,6 +4,7 @@ import BlackHeader from '@/components/BlackHeader'
 import ConditionalFooter from '@/components/ConditionalFooter'
 import { UserProvider } from '@/components/UserContext'
 import { LanguageProvider } from '@/components/LanguageContext'
+import { Toaster } from '@/components/ui/toaster'
 
 export const metadata: Metadata = {
   title: 'RamahAI',
@@ -36,6 +37,7 @@ export default function RootLayout({
               {children}
             </main>
             <ConditionalFooter />
+            <Toaster />
           </LanguageProvider>
         </UserProvider>
       </body>
