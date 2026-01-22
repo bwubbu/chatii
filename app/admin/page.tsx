@@ -352,21 +352,39 @@ export default function AdminPage() {
   }
 
   const handleApproveFlaggedMessage = async (flagId: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase
-      .from('flagged_messages')
-      .update({ 
-        status: 'resolved',
-        reviewed_by: user?.id,
-        reviewed_at: new Date().toISOString()
+    try {
+      // Get session token for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('You must be logged in to approve flagged messages')
+        return
+      }
+
+      // Call API route that uses service role key to bypass RLS
+      const response = await fetch('/api/flagged-messages', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          flagId,
+          status: 'resolved'
+        })
       })
-      .eq('id', flagId)
-    
-    if (error) {
-      console.error('Error approving flagged message:', error)
-      alert('Failed to approve flagged message')
-    } else {
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'Failed to approve flagged message')
+      }
+      
+      // Success - refresh the flagged messages list
       fetchFlaggedMessages()
+      fetchTrainingDataInsights() // Also refresh insights to update the count
+    } catch (err: any) {
+      console.error('Error approving flagged message:', err)
+      alert(`Failed to approve flagged message: ${err.message || 'Unknown error'}`)
     }
   }
 
@@ -394,43 +412,108 @@ export default function AdminPage() {
       const startDateStr = startDate ? startDate.toISOString().split('T')[0] : undefined
       const endDateStr = endDate ? endDate.toISOString().split('T')[0] : undefined
       
-      // Build query
-      let query = supabase
+      // Build query for feedback data
+      let feedbackQuery = supabase
         .from("feedback_questionnaire")
         .select("politeness, fairness, respectfulness, trustworthiness, competence, likeability")
       
       if (startDateStr) {
-        query = query.gte("created_at", startDateStr)
+        feedbackQuery = feedbackQuery.gte("created_at", startDateStr)
       }
       if (endDateStr) {
-        query = query.lte("created_at", endDateStr)
+        feedbackQuery = feedbackQuery.lte("created_at", endDateStr)
       }
       if (selectedPersonaForExport && selectedPersonaForExport !== 'all') {
-        query = query.eq("persona_id", selectedPersonaForExport)
+        feedbackQuery = feedbackQuery.eq("persona_id", selectedPersonaForExport)
       }
       
-      const { data: feedbackData, error } = await query
+      const { data: feedbackData, error: feedbackError } = await feedbackQuery
       
-      if (error) {
-        console.error("Error fetching training insights:", error)
+      if (feedbackError) {
+        console.error("Error fetching training insights:", feedbackError)
         return
+      }
+      
+      // Build query for resolved/approved flagged messages
+      // Use API route to bypass RLS and get accurate count with persona info
+      let approvedFlagsCount = 0
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          const response = await fetch('/api/flagged-messages', {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          })
+          
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success && result.flaggedMessages) {
+              // Filter by status, date range, and persona
+              let filteredFlags = result.flaggedMessages.filter((f: any) => {
+                // Must be resolved
+                if (f.status !== 'resolved') return false
+                
+                // Filter by date range
+                if (startDateStr) {
+                  const flagDate = new Date(f.created_at).toISOString().split('T')[0]
+                  if (flagDate < startDateStr) return false
+                }
+                if (endDateStr) {
+                  const flagDate = new Date(f.created_at).toISOString().split('T')[0]
+                  if (flagDate > endDateStr) return false
+                }
+                
+                // Filter by persona if specified
+                if (selectedPersonaForExport && selectedPersonaForExport !== 'all') {
+                  return f.persona?.id === selectedPersonaForExport
+                }
+                
+                return true
+              })
+              
+              approvedFlagsCount = filteredFlags.length
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching approved flags count:", err)
+        // Fallback to direct query (may be limited by RLS)
+        let flaggedQuery = supabase
+          .from("flagged_messages")
+          .select("id", { count: 'exact', head: true })
+          .eq("status", "resolved")
+        
+        if (startDateStr) {
+          flaggedQuery = flaggedQuery.gte("created_at", startDateStr)
+        }
+        if (endDateStr) {
+          flaggedQuery = flaggedQuery.lte("created_at", endDateStr)
+        }
+        
+        const { count, error: flaggedError } = await flaggedQuery
+        
+        if (!flaggedError && count !== null) {
+          approvedFlagsCount = count
+        } else if (flaggedError) {
+          console.error("Error fetching flagged messages count:", flaggedError)
+        }
       }
       
       if (!feedbackData || feedbackData.length === 0) {
         setTrainingDataInsights({
           total: 0,
           highQuality: 0,
-          lowQuality: 0,
+          lowQuality: approvedFlagsCount,
           mediumQuality: 0,
           avgScore: 0
         })
         return
       }
       
-      // Calculate insights
+      // Calculate insights from feedback data
       let totalScore = 0
       let highQualityCount = 0
-      let lowQualityCount = 0
       let mediumQualityCount = 0
       
       feedbackData.forEach((f: any) => {
@@ -447,8 +530,6 @@ export default function AdminPage() {
         
         if (avgScore >= 4.0) {
           highQualityCount++
-        } else if (avgScore < 2.5) {
-          lowQualityCount++
         } else {
           mediumQualityCount++
         }
@@ -457,7 +538,7 @@ export default function AdminPage() {
       setTrainingDataInsights({
         total: feedbackData.length,
         highQuality: highQualityCount,
-        lowQuality: lowQualityCount,
+        lowQuality: approvedFlagsCount, // Now represents approved/resolved flag messages
         mediumQuality: mediumQualityCount,
         avgScore: totalScore / feedbackData.length
       })
@@ -606,7 +687,17 @@ export default function AdminPage() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Export failed')
+        let errorMessage = errorData.error || 'Export failed'
+        if (errorData.details) {
+          errorMessage += `\n\n${errorData.details}`
+        }
+        if (errorData.foundFlags !== undefined) {
+          errorMessage += `\n\nFound ${errorData.foundFlags} resolved flags, but ${errorData.exportedFlags || 0} could be exported.`
+          if (errorData.foundFlags > 0 && errorData.exportedFlags === 0) {
+            errorMessage += `\n\nThis usually means the flags don't have valid message_ids or the messages were deleted. Check the server console for details.`
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       // Download the file
@@ -721,6 +812,41 @@ export default function AdminPage() {
 
   const fetchFlaggedMessages = async () => {
     console.log('Fetching flagged messages...')
+    
+    // Get auth token for API calls
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      console.error('No session found')
+      setFlaggedMessages([])
+      return
+    }
+    
+    try {
+      // Use API route that bypasses RLS to get flagged messages with persona info
+      const response = await fetch('/api/flagged-messages', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch flagged messages: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      if (result.success && result.flaggedMessages) {
+        setFlaggedMessages(result.flaggedMessages)
+        return
+      } else {
+        throw new Error(result.error || 'Failed to fetch flagged messages')
+      }
+    } catch (err: any) {
+      console.error('Error fetching flagged messages:', err)
+      setFlaggedMessages([])
+      return
+    }
+    
+    // Fallback to direct query if API fails (old method)
     const { data, error } = await supabase
       .from("flagged_messages")
       .select("*")
@@ -731,10 +857,6 @@ export default function AdminPage() {
       setFlaggedMessages([])
       return
     }
-    
-    // Get auth token for API calls
-    const { data: { session } } = await supabase.auth.getSession()
-    const authToken = session?.access_token || null
     
     // Enrich data with persona info, user context, and reporter info
     const enrichedData = await Promise.all((data || []).map(async (flag) => {
@@ -1887,17 +2009,12 @@ export default function AdminPage() {
                 
                 <Card className="bg-[#1a1a1f] border-gray-700">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-400">Low Quality</CardTitle>
+                    <CardTitle className="text-sm font-medium text-gray-400">Approved Flags</CardTitle>
                     <TrendingDown className="h-4 w-4 text-red-400" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-red-400">{trainingDataInsights.lowQuality}</div>
-                    <p className="text-xs text-gray-400">Score &lt; 2.5</p>
-                    {trainingDataInsights.total > 0 && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        {((trainingDataInsights.lowQuality / trainingDataInsights.total) * 100).toFixed(1)}%
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-400">Resolved/Approved flag messages</p>
                   </CardContent>
                 </Card>
                 
@@ -2285,17 +2402,6 @@ export default function AdminPage() {
                     )}
                   </div>
 
-                  {/* Export Format */}
-                  <div className="space-y-2">
-                    <Label className="text-gray-300">Export Format</Label>
-                    <div className="bg-[#23232a] border border-gray-600 rounded-md px-3 py-2 text-white">
-                      Embedding Format (RAG)
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      Plain text format suitable for embedding generation and vector database storage.
-                    </p>
-                  </div>
-
                   {/* Export and Upload Buttons */}
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-3">
@@ -2404,17 +2510,6 @@ export default function AdminPage() {
                         <SelectItem value="low">Low</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-
-                  {/* Export Format */}
-                  <div className="space-y-2">
-                    <Label className="text-gray-300">Export Format</Label>
-                    <div className="bg-[#23232a] border border-gray-600 rounded-md px-3 py-2 text-white">
-                      Embedding Format (RAG)
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      Plain text format suitable for embedding generation and vector database storage.
-                    </p>
                   </div>
 
                   {/* Export and Upload Buttons */}
